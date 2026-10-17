@@ -47,12 +47,20 @@ export default function SchoolMap({ schools, onSelect, origin, onOrigin, selecte
     [schools, hidden, district, nameQ],
   )
   const noGeo = visible.filter((s) => !s.geo).length
+  const filtered = Boolean(nameQ || district || hidden.size > 0)
 
   useEffect(() => {
     if (!el.current || mapRef.current) return
     // 서울 범위 밖으로 나가거나 더 멀리 보지 않도록 경계·최소 확대 수준을 고정한다 (약간의 여유 포함)
     const seoulBounds = L.latLngBounds([37.41, 126.74], [37.72, 127.20])
-    const map = L.map(el.current, { center: [37.5665, 126.978], zoom: 11, minZoom: 11, maxZoom: 18, maxBounds: seoulBounds, maxBoundsViscosity: 1.0, zoomControl: true, attributionControl: true })
+    const map = L.map(el.current, { center: [37.5665, 126.978], zoom: 11, minZoom: 10, maxZoom: 18, zoomSnap: 0.25, zoomDelta: 0.5, maxBounds: seoulBounds, maxBoundsViscosity: 1.0, zoomControl: true, attributionControl: true })
+    // 화면이 넓어도 서울 밖(경기도)이 크게 보이지 않도록, 서울 경계가 화면에 꼭 맞는 확대 수준을 하한으로 둔다 (크기 바뀌면 다시 계산)
+    const applyMinZoom = () => {
+      const z = Math.max(10, map.getBoundsZoom(seoulBounds, false) + 0.25)
+      map.setMinZoom(z)
+      if (map.getZoom() < z) map.setZoom(z)
+    }
+    map.whenReady(() => { applyMinZoom(); map.fitBounds(seoulBounds) })
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' })
     tiles.on('tileerror', () => setTileFailed(true))
     tiles.addTo(map)
@@ -70,7 +78,7 @@ export default function SchoolMap({ schools, onSelect, origin, onOrigin, selecte
       onOrigin({ lat: Number(e.latlng.lat.toFixed(4)), lng: Number(e.latlng.lng.toFixed(4)), label: '지도에서 찍은 대략적 위치' })
     })
     // 컨테이너 크기가 바뀌면(큰 화면·패널 접기) 타일을 다시 맞춘다
-    const ro = new ResizeObserver(() => map.invalidateSize())
+    const ro = new ResizeObserver(() => { map.invalidateSize(); applyMinZoom() })
     ro.observe(el.current)
     return () => {
       ro.disconnect()
@@ -105,8 +113,8 @@ export default function SchoolMap({ schools, onSelect, origin, onOrigin, selecte
       })
       m.addTo(layer)
     }
-    if (pts.length > 0 && mapRef.current && !origin && !selectedId) mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.15), { maxZoom: 14 }) // minZoom 11 이 하한
-  }, [visible, onSelect, origin, selectedId])
+    if (pts.length > 0 && mapRef.current && !origin && !selectedId && filtered) mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.15), { maxZoom: 14 }) // 전체 결과일 땐 서울 경계 그대로
+  }, [visible, onSelect, origin, selectedId, filtered])
 
   // 선택한 학교가 화면 밖이면 보이게 옮긴다 (확대 수준은 유지)
   useEffect(() => {
@@ -134,7 +142,6 @@ export default function SchoolMap({ schools, onSelect, origin, onOrigin, selecte
   const toggleKey = (k: MarkerKey) => setHidden((h) => { const n = new Set(h); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const onlyKey = (k: MarkerKey) => setHidden(new Set(MARKER_STYLES.map((m) => m.key).filter((x) => x !== k)))
   const presentKeys = MARKER_STYLES.filter((m) => (counts.get(m.key) ?? 0) > 0)
-  const filtered = nameQ || district || hidden.size > 0
 
   return (
     <div className="map-wrap">
