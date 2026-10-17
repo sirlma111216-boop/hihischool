@@ -32,6 +32,19 @@ npx wrangler secret put AI_PROVIDER / AI_API_KEY  # 선택 (없으면 AI UI 비�
 
 대안: `.github/workflows/deploy.yml` 이 저장소 secrets `CLOUDFLARE_API_TOKEN`(Workers Scripts:Edit, D1:Edit, Account Settings:Read), `CLOUDFLARE_ACCOUNT_ID` 가 있을 때 `main` push 마다 migrations + deploy 를 수행한다. Workers Builds 를 연결했다면 중복을 피하려 secrets 를 넣지 않거나 deploy job 을 비활성화한다. 두 경로 모두 CI(typecheck·lint·unit·build)는 항상 실행된다.
 
+### 현재 상태 (2026-10-17)
+- 첫 배포 완료: **https://highschool-atlas.sirlma.workers.dev** (Version 027fb877…). 가상 자료는 배포 환경에서 차단되므로 학교 수 0 으로 시작한다.
+- 저장소 push 완료: `main` → GitHub Actions `ci-and-deploy` 의 check job 이 실행된다. deploy job 은 secrets 가 있을 때만 동작한다.
+- **대시보드 Git 연결은 계정 로그인이 필요해 자동화하지 못했다.** 아래 두 경로 중 하나를 선택한다.
+
+#### 경로 A — Workers Builds (권장, 대시보드 5분)
+Workers & Pages → `highschool-atlas` → Settings → Builds → **Connect** → GitHub 앱 설치(`sirlma111216-boop/hihischool` 허용) → Build command `npm run build`, Deploy command `npx wrangler deploy`, Root `/`, Production branch `main` → Save. 그 뒤 `main` push 마다 Cloudflare 가 빌드·배포한다. (이 경로를 쓰면 GitHub secrets 는 넣지 않는다.)
+
+#### 경로 B — GitHub Actions (대시보드 없이)
+1. Cloudflare → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" 템플릿 + D1 Edit 권한.
+2. GitHub 저장소 → Settings → Secrets and variables → Actions: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`(`3c166b189a0b269ef920ffe9301ae05d`) 추가.
+3. 다음 `main` push 부터 `.github/workflows/deploy.yml` 의 deploy job 이 migrations 적용 후 `wrangler deploy` 를 실행한다.
+
 ## 4. 수동 배포
 ```bash
 npm run build && npx wrangler deploy

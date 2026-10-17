@@ -34,7 +34,16 @@ test.describe('상담 흐름', () => {
     await page.goto('/compare?schools=syn_school_a,syn_school_b,syn_school_c&cohort=2027')
     await expect(page.getByRole('heading', { name: '학교 비교' })).toBeVisible()
     await expect(page.getByText(/동일 기준\(입학연도·과정\) 자료가 없어/)).toBeVisible()
-    await expect(page.getByText('가상 특성화 학교 C').first()).toBeVisible()
+    // 미확인 학교(C)도 비교에서 제거되지 않는다: 비교 바구니(모든 폭)와, 데스크톱 표 또는 모바일 카드 페이징
+    await expect(page.getByRole('region', { name: '비교 바구니' }).getByText('가상 특성화 학교 C')).toBeVisible()
+    const mobileNext = page.getByRole('button', { name: '다음 ›' })
+    if (await mobileNext.isVisible()) {
+      await mobileNext.click()
+      await mobileNext.click()
+      await expect(page.locator('.compare-cards').getByText(/해당 입학생 미확인/).first()).toBeVisible()
+    } else {
+      await expect(page.getByRole('link', { name: '가상 특성화 학교 C' })).toBeVisible()
+    }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
     expect(overflow).toBe(false)
   })

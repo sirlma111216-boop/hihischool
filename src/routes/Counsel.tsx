@@ -52,7 +52,7 @@ export default function Counsel() {
   if (!s) {
     return (
       <Empty title="상담을 시작하세요" actions={<><Button variant="primary" onClick={() => dispatch({ type: 'session.set', session: newSession(state.cohortYear) })}>새 상담 시작</Button><label className="btn secondary">JSON 복원<input type="file" accept="application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; const text = await f.text(); try { const obj = JSON.parse(text) as { format?: string }; if (obj.format === 'atlas-backup-v1') { const p = prompt('백업 비밀번호'); if (!p) return; dispatch({ type: 'session.set', session: await decryptJson<CounselingSession>(text, p) }) } else dispatch({ type: 'session.set', session: obj as CounselingSession }) } catch { alert('복원할 수 없는 파일입니다. 비밀번호를 분실한 암호화 백업은 복구할 수 없습니다.') } }} /></label></>}>
-        학생은 실명 대신 별칭으로 관리합니다. 기본은 이 브라우저 세션 메모리에만 저장되며 서버로 보내지 않습니다. 성적·생기부·민감한 개인 정보는 수집하지 않습니다.
+        학생은 실명 대신 별칭으로 관리합니다. 기본은 이 브라우저 탭 세션에만 저장되며(탭을 닫으면 사라짐) 서버로 보내지 않습니다. 성적·생기부·민감한 개인 정보는 수집하지 않습니다.
       </Empty>
     )
   }
@@ -62,7 +62,7 @@ export default function Counsel() {
       <div className="page-head">
         <div>
           <h1>상담 워크스페이스 {s.alias ? `· ${s.alias}` : ''}</h1>
-          <div className="sub">대상 {s.targetCohortYear} 입학생 · 시작 {formatDateKo(s.createdAt)} · {state.persistSession ? '이 기기에 저장 중' : '세션 메모리에만 저장 (닫으면 사라짐)'}</div>
+          <div className="sub">대상 {s.targetCohortYear} 입학생 · 시작 {formatDateKo(s.createdAt)} · {state.persistSession ? '이 기기에 저장 중' : '이 탭 세션에만 저장 (탭을 닫으면 사라짐)'}</div>
         </div>
         <div className="toolbar no-print">
           <label className="check"><input type="checkbox" checked={state.counselMode} onChange={(e) => dispatch({ type: 'counselMode', on: e.target.checked })} /> 상담 화면 모드 (큰 글씨 · 비공개 메모 숨김)</label>

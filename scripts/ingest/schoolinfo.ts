@@ -55,7 +55,7 @@ function dig(obj: unknown, pathParts: string[]): unknown {
   return cur
 }
 
-async function fetchDistrict(name: string, code: string, key: string): Promise<Record<string, unknown>[]> {
+async function fetchDistrict(_name: string, code: string, key: string): Promise<Record<string, unknown>[]> {
   const u = new URL(config.endpoint)
   u.searchParams.set(config.keyParam, key)
   u.searchParams.set('apiType', config.apiType)

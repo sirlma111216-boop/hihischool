@@ -35,7 +35,8 @@ type Action =
   | { type: 'search.remember'; query: string; scrollY: number }
 
 const SS_KEY = 'atlas.workspace.v1'
-const LS_SESSION_KEY = 'atlas.counseling.v1'
+const SS_SESSION_KEY = 'atlas.counseling.session.v1' // 탭 세션 (탭을 닫으면 사라짐)
+const LS_SESSION_KEY = 'atlas.counseling.v1' // 기기 저장 (사용자가 선택할 때만)
 
 function load(): WorkspaceState {
   const base: WorkspaceState = {
@@ -62,6 +63,9 @@ function load(): WorkspaceState {
     if (raw) {
       base.session = JSON.parse(raw) as CounselingSession
       base.persistSession = true
+    } else {
+      const ss = sessionStorage.getItem(SS_SESSION_KEY)
+      if (ss) base.session = JSON.parse(ss) as CounselingSession
     }
   } catch {
     /* ignore */
@@ -115,6 +119,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [state])
   useEffect(() => {
     try {
+      // 기본: 이 탭의 세션 저장소에만 (탭을 닫으면 사라짐). 기기 저장은 명시적 선택.
+      if (state.session) sessionStorage.setItem(SS_SESSION_KEY, JSON.stringify(state.session))
+      else sessionStorage.removeItem(SS_SESSION_KEY)
       if (state.persistSession && state.session) localStorage.setItem(LS_SESSION_KEY, JSON.stringify(state.session))
       else localStorage.removeItem(LS_SESSION_KEY)
     } catch {
@@ -166,6 +173,7 @@ export function newSession(cohortYear: number): CounselingSession {
 export function clearDeviceStorage() {
   try {
     localStorage.removeItem(LS_SESSION_KEY)
+    sessionStorage.removeItem(SS_SESSION_KEY)
     sessionStorage.removeItem(SS_KEY)
   } catch {
     /* ignore */
