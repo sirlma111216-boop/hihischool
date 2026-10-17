@@ -5,7 +5,7 @@ import { useAsync, useDocumentTitle } from '../lib/hooks'
 import { apiPost } from '../lib/api'
 import type { CompareColumn, CompareResponse } from '../lib/types'
 import { Button, Empty, ErrorBox, EvidenceButton, Interpretation, Skeleton, StatusBadge, SyntheticBadge, Tone } from '../components/ui'
-import { ESTABLISHMENT_LABEL, GENDER_LABEL, SCHOOL_TYPE_LABEL, SELECTION_AUTHORITY_LABEL } from '@shared/types'
+import { ESTABLISHMENT_LABEL, GENDER_LABEL, SELECTION_AUTHORITY_LABEL, schoolTypeDisplay } from '@shared/types'
 import { downloadBlob, toCsv } from '../lib/export'
 import { formatCalendarDate } from '@shared/format'
 import { DEFAULT_COMPARE_SCHOOLS, MAX_COMPARE_SCHOOLS } from '@shared/constants'
@@ -51,7 +51,7 @@ export default function Compare() {
     })
     const base: Row[] = [
       { key: 'basis', group: '기준', label: '자료 상태 (교육과정)', cells: (col) => { const c = col.curriculum; if (!c) return { text: '학교 없음', status: 'bad' }; const t = c.status === 'available' ? `공개 · ${c.reviewStatus === 'approved' ? '검토 완료' : '검토 미확인'} · ${c.revision} 개정` : c.status === 'unreviewed_only' ? '검토 대기 (공개 전)' : c.status === 'track_required' ? '과정 선택 필요' : c.status === 'cohort_not_available' ? `해당 입학생 미확인 (보유: ${c.availableCohortYears.join(', ') || '없음'})` : '미수집'; return { text: t, status: c.status === 'available' ? 'ok' : c.status === 'track_required' ? 'cond' : 'unknown' } } },
-      { key: 'type', group: '학교', label: '유형 · 선발 방식', cells: (col) => { const s = col.school!; const rule = col.admissionRules[0]; return { text: `${SCHOOL_TYPE_LABEL[s.schoolType]} · ${rule ? SELECTION_AUTHORITY_LABEL[rule.selectionAuthority] : '규정 미확인'}`, status: rule ? 'ok' : 'unknown', node: <>{SCHOOL_TYPE_LABEL[s.schoolType]}<span className="cellnote">{rule ? `${SELECTION_AUTHORITY_LABEL[rule.selectionAuthority]} (${rule.admissionYear})` : '해당 연도 규정 미확인'}</span>{rule && <EvidenceButton ids={rule.evidenceIds} onOpen={open} />}</> } } },
+      { key: 'type', group: '학교', label: '유형 · 선발 방식', cells: (col) => { const s = col.school!; const rule = col.admissionRules[0]; return { text: `${schoolTypeDisplay(s)} · ${rule ? SELECTION_AUTHORITY_LABEL[rule.selectionAuthority] : '규정 미확인'}`, status: rule ? 'ok' : 'unknown', node: <>{schoolTypeDisplay(s)}{s.schoolTypeStatus === 'conflict' && <> <StatusBadge status="conflict" /></>}<span className="cellnote">{rule ? `${SELECTION_AUTHORITY_LABEL[rule.selectionAuthority]} (${rule.admissionYear})` : '해당 연도 규정 미확인'}</span>{rule && <EvidenceButton ids={rule.evidenceIds} onOpen={open} />}</> } } },
       { key: 'est', group: '학교', label: '설립 · 공학 · 자치구', cells: (col) => { const s = col.school!; return { text: `${ESTABLISHMENT_LABEL[s.establishment]} · ${GENDER_LABEL[s.gender]} · ${s.district}`, status: 'ok' } } },
       { key: 'commute', group: '접근성', label: '사용자 확인 통학', cells: (col) => { const uc = state.session?.userCommutes.find((u) => u.schoolId === col.schoolId); return uc ? { text: `${uc.mode} ${uc.minutes ?? '?'}분 (${uc.checkedOn ?? '확인일 미기록'}, ${uc.source})`, status: 'ok' } : { text: '미확인 (직선거리로 환산하지 않음)', status: 'unknown' } } },
     ]

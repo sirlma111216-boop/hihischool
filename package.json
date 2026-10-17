@@ -26,7 +26,10 @@
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types",
     "docs:package-matrix": "tsx scripts/docs/package-matrix.ts",
-    "db:export-sql": "tsx scripts/db/export-sql.ts"
+    "db:export-sql": "tsx scripts/db/export-sql.ts",
+    "docs:discover": "tsx scripts/docs/discover.ts",
+    "ingest:audit-types": "tsx scripts/ingest/audit-types.ts",
+    "docs:pilot": "tsx scripts/docs/pilot.ts"
   },
   "dependencies": {
     "hono": "^4.9.0",

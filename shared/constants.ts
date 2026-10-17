@@ -48,7 +48,8 @@ export const PLANNER_MAX_NODES = 5000
 export const PLANNER_MAX_MS = 800
 
 /** 시연·시작 시 제안하는 기본 대상 입학연도. 사용자가 명시적으로 선택해야 한다. */
-export function suggestedCohortYear(now = new Date()): number {
-  // 다음 입학연도를 제안한다. 자료 확보 여부는 별도로 표시한다.
-  return now.getFullYear() + 1
+/** 2026-10-17 사용자 결정: 공개된 편제표가 모두 2026 입학생용이라 당분간 2026 을 기본값으로 둔다. 2027 자료가 확보되면 바꾼다. */
+export const DEFAULT_COHORT_YEAR = 2026
+export function suggestedCohortYear(_now = new Date()): number {
+  return DEFAULT_COHORT_YEAR
 }

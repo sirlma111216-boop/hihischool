@@ -5,7 +5,7 @@ import { useAsync, useDocumentTitle } from '../lib/hooks'
 import { apiGet } from '../lib/api'
 import type { ProfileResponse } from '../lib/types'
 import { Button, Empty, ErrorBox, EvidenceButton, Interpretation, Skeleton, StatusBadge, SyntheticBadge, Tone } from '../components/ui'
-import { DOCUMENT_TYPE_LABEL, ESTABLISHMENT_LABEL, GENDER_LABEL, SCHOOL_TYPE_LABEL, SELECTION_AUTHORITY_LABEL, type CurriculumLookup, type Fact } from '@shared/types'
+import { DOCUMENT_TYPE_LABEL, ESTABLISHMENT_LABEL, GENDER_LABEL, SELECTION_AUTHORITY_LABEL, schoolTypeDisplay, type CurriculumLookup, type Fact } from '@shared/types'
 import { formatCalendarDate, formatDateKo } from '@shared/format'
 import { MAX_COMPARE_SCHOOLS } from '@shared/constants'
 
@@ -52,7 +52,7 @@ export default function SchoolProfile() {
     <>
       <div className="page-head">
         <div>
-          <div className="eyebrow">{s.district} · {SCHOOL_TYPE_LABEL[s.schoolType]}</div>
+          <div className="eyebrow">{s.district} · {schoolTypeDisplay(s)}</div>
           <h1 style={{ marginTop: 4 }}>{s.officialName} {s.isSynthetic && <SyntheticBadge />}</h1>
           <div className="sub">
             {ESTABLISHMENT_LABEL[s.establishment]} · {GENDER_LABEL[s.gender]} · {s.address ?? '주소 미확인'}
@@ -100,8 +100,8 @@ export default function SchoolProfile() {
             <dl className="brief kv" style={{ border: 0 }}>
               <dt>공식명</dt><dd>{s.officialName}{s.shortName ? ` (${s.shortName})` : ''}</dd>
               <dt>별칭</dt><dd>{s.aliases.length ? s.aliases.join(', ') : '승인된 별칭 없음'}</dd>
-              <dt>유형</dt><dd>{SCHOOL_TYPE_LABEL[s.schoolType]} <StatusBadge status={s.schoolTypeStatus} /></dd>
-              <dt>설립 / 공학</dt><dd>{ESTABLISHMENT_LABEL[s.establishment]} / {GENDER_LABEL[s.gender]}</dd>
+              <dt>유형</dt><dd>{schoolTypeDisplay(s)} <StatusBadge status={s.schoolTypeStatus} />{s.schoolSubtype && <span className="cellnote">세부 구분 원문: {s.schoolSubtype}</span>}{s.sourceConflicts.filter((c) => c.field === 'schoolType').map((c) => <span key={c.field} className="cellnote">제공처 값이 다릅니다 — {c.values.map((v) => `${v.provider === 'schoolinfo' ? '학교알리미' : v.provider === 'neis' ? '나이스' : v.provider}: ${v.value}`).join(' / ')}. 어느 쪽이 최신인지 확인 전까지 임의로 고르지 않습니다.</span>)}</dd>
+              <dt>설립 / 공학</dt><dd>{ESTABLISHMENT_LABEL[s.establishment]} / {GENDER_LABEL[s.gender]}{s.sourceConflicts.filter((c) => c.field === 'gender').map((c) => <span key={c.field} className="cellnote"><StatusBadge status="conflict" /> {c.values.map((v) => `${v.provider === 'schoolinfo' ? '학교알리미' : '나이스'}: ${v.value}`).join(' / ')}</span>)}</dd>
               <dt>운영 상태</dt><dd>{s.operatingStatus === 'operating' ? '운영 중' : s.operatingStatus === 'unknown' ? '미확인' : s.operatingStatus}</dd>
               <dt>학과·과정</dt><dd>{s.tracks.length ? s.tracks.map((t) => `${t.name}`).join(', ') : '검토된 학과·과정 없음'}</dd>
               <dt>좌표</dt><dd>{s.geo ? `${s.geo.lat}, ${s.geo.lng} (출처 ${s.geo.source})` : '좌표 없음 (목록·비교에는 포함)'}</dd>

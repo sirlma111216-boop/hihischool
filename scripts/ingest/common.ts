@@ -71,6 +71,8 @@ export interface ExistingSchool {
   geo: { lat: number; lng: number; source: string; retrievedAt: string | null } | null
   schoolType: string
   schoolTypeStatus: string
+  schoolSubtype: string | null
+  sourceConflicts: { field: string; values: { provider: string; value: string }[] }[]
   establishment: string
   gender: string
   dayNight: string

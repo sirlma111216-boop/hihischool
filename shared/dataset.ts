@@ -55,7 +55,7 @@ export function emptyDataset(): Dataset {
 }
 
 export function searchBlobFor(s: School, extraTerms: string[] = []): string {
-  return [s.officialName, s.shortName ?? '', ...s.aliases, s.district, s.address ?? '', ...s.tracks.map((t) => t.name), ...extraTerms]
+  return [s.officialName, s.shortName ?? '', ...s.aliases, s.district, s.address ?? '', ...s.tracks.map((t) => t.name), s.schoolSubtype ?? '', ...extraTerms]
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -66,13 +66,13 @@ export function datasetStatements(ds: Dataset): Statement[] {
   const out: Statement[] = []
   for (const s of ds.schools) {
     out.push({
-      sql: `INSERT INTO schools (id, official_name, short_name, district, district_code, school_type, school_type_status, establishment, gender, day_night, operating_status, address, lat, lng, geo_source, geo_retrieved_at, homepage, is_synthetic, retrieved_at, source_document_id, exclusion_reason, search_blob, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-ON CONFLICT(id) DO UPDATE SET official_name=excluded.official_name, short_name=excluded.short_name, district=excluded.district, district_code=excluded.district_code, school_type=excluded.school_type, school_type_status=excluded.school_type_status, establishment=excluded.establishment, gender=excluded.gender, day_night=excluded.day_night, operating_status=excluded.operating_status, address=excluded.address, lat=excluded.lat, lng=excluded.lng, geo_source=excluded.geo_source, geo_retrieved_at=excluded.geo_retrieved_at, homepage=excluded.homepage, is_synthetic=excluded.is_synthetic, retrieved_at=excluded.retrieved_at, source_document_id=excluded.source_document_id, exclusion_reason=excluded.exclusion_reason, search_blob=excluded.search_blob, updated_at=excluded.updated_at`,
+      sql: `INSERT INTO schools (id, official_name, short_name, district, district_code, school_type, school_type_status, establishment, gender, day_night, operating_status, address, lat, lng, geo_source, geo_retrieved_at, homepage, is_synthetic, retrieved_at, source_document_id, exclusion_reason, search_blob, school_subtype, source_conflicts, updated_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+ON CONFLICT(id) DO UPDATE SET official_name=excluded.official_name, short_name=excluded.short_name, district=excluded.district, district_code=excluded.district_code, school_type=excluded.school_type, school_type_status=excluded.school_type_status, establishment=excluded.establishment, gender=excluded.gender, day_night=excluded.day_night, operating_status=excluded.operating_status, address=excluded.address, lat=excluded.lat, lng=excluded.lng, geo_source=excluded.geo_source, geo_retrieved_at=excluded.geo_retrieved_at, homepage=excluded.homepage, is_synthetic=excluded.is_synthetic, retrieved_at=excluded.retrieved_at, source_document_id=excluded.source_document_id, exclusion_reason=excluded.exclusion_reason, search_blob=excluded.search_blob, school_subtype=excluded.school_subtype, source_conflicts=excluded.source_conflicts, updated_at=excluded.updated_at`,
       params: [
         s.id, s.officialName, s.shortName, s.district, s.districtCode, s.schoolType, s.schoolTypeStatus, s.establishment, s.gender, s.dayNight,
         s.operatingStatus, s.address, s.geo?.lat ?? null, s.geo?.lng ?? null, s.geo?.source ?? null, s.geo?.retrievedAt ?? null, s.homepage,
-        b(s.isSynthetic), s.retrievedAt, s.sourceDocumentId, s.exclusionReason, searchBlobFor(s),
+        b(s.isSynthetic), s.retrievedAt, s.sourceDocumentId, s.exclusionReason, searchBlobFor(s), s.schoolSubtype ?? null, j(s.sourceConflicts ?? []),
       ],
     })
     for (const a of s.aliases) out.push({ sql: `INSERT OR REPLACE INTO school_aliases (school_id, alias, approved) VALUES (?,?,1)`, params: [s.id, a] })

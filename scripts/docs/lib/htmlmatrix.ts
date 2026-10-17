@@ -46,7 +46,7 @@ export interface MatrixOptions {
   tableIndex: number
   isSynthetic?: boolean
   /** PDF 입력일 때 */
-  source?: 'html_table' | 'pdf_table'
+  source?: 'html_table' | 'pdf_table' | 'xlsx'
   pageSizes?: Record<number, { width: number; height: number }>
   pageLabels?: Record<number, string | null>
   originalFilename?: string | null
@@ -100,13 +100,14 @@ const CATEGORY_MAP: [RegExp, CourseCategory][] = [
   [/융합/, 'fusion_elective'],
   [/전공|전문/, 'specialized'],
 ]
-const nz = (s: string) => s.replace(/\s+/g, '')
+/** 머리글 정규화: 공백·각주 번호(1), 2)…)·주석 괄호 제거 */
+const nz = (s: string) => s.replace(/\s+/g, '').replace(/^\d+\)/, '').replace(/\(주\d*\)$/, '')
 
 export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): { dataset: Dataset; report: string[] } {
   const ds = emptyDataset()
   const report: string[] = []
   const grid = expandGrid(table.rows)
-  const gradeRowIdx = grid.findIndex((row) => row.some((c) => /^[123]학년$/.test(nz(c.text))))
+  const gradeRowIdx = grid.findIndex((row) => row.some((c) => /^[123]학년([12]학기)?$/.test(nz(c.text))))
   if (gradeRowIdx < 0) {
     report.push('머리글에서 학년 열을 찾지 못해 표를 건너뜁니다.')
     return { dataset: ds, report }
@@ -118,9 +119,10 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
   let dataStart = gradeRowIdx + 1
   const colInfo: ({ grade: Grade; semester: Semester; part: 'theory' | 'practice' | 'single' } | undefined)[] = []
   for (let c = 0; c < colCount; c++) {
-    const g = nz(gradeRow[c]?.text ?? '').match(/^([123])학년$/)
+    const combined = nz(gradeRow[c]?.text ?? '').match(/^([123])학년([12])학기$/)
+    const g = combined ? [combined[0], combined[1]] : nz(gradeRow[c]?.text ?? '').match(/^([123])학년$/)
     if (!g) continue
-    const s = nz(semRow?.[c]?.text ?? '').match(/^([12])학기$/)
+    const s = combined ? [combined[0], combined[2]] : nz(semRow?.[c]?.text ?? '').match(/^([12])학기$/)
     const p = nz(partRow?.[c]?.text ?? '')
     if (s) dataStart = Math.max(dataStart, gradeRowIdx + 2)
     if (p === '이론' || p === '실습') dataStart = Math.max(dataStart, gradeRowIdx + 3)
@@ -129,10 +131,10 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
   const findCol = (re: RegExp) => gradeRow.findIndex((c) => re.test(nz(c?.text ?? '')))
   const colType = findCol(/^과목유형$/) >= 0 ? findCol(/^과목유형$/) : findCol(/^(구분|유형)$/)
   const colReq = findCol(/^과목유형$/) >= 0 ? findCol(/^구분$/) : -1
-  const colName = findCol(/^과목(명)?$/)
+  const colName = findCol(/^과목(명)?$/) >= 0 ? findCol(/^과목(명)?$/) : findCol(/^세부교과목$|^교과목(명)?$|^과목명$/)
   const colBase = findCol(/^(기준|기본)학점$/)
   const colRun = findCol(/운영학점|^운영$/)
-  const colGroup = findCol(/^교과\(군\)$|^교과군$|^교과$/)
+  const colGroup = findCol(/^교과영역$/) >= 0 ? findCol(/^교과영역$/) : findCol(/^교과\(군\)$|^교과군$|^교과$/)
   if (colName < 0) {
     report.push("머리글에서 '과목' 열을 찾지 못했습니다.")
     return { dataset: ds, report }
@@ -162,7 +164,7 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
     reviewStatus: 'draft',
     supersedesId: null,
     isSynthetic: Boolean(opts.isSynthetic),
-    notes: `${method === 'pdf_table' ? '공식 PDF 격자' : '공식 홈페이지 HTML 표'} "${table.heading}" 에서 추출한 초안. 게시일은 문서에 없어 미확인`,
+    notes: `${method === 'pdf_table' ? '공식 PDF 격자' : method === 'xlsx' ? '공식 XLSX 표' : '공식 홈페이지 HTML 표'} "${table.heading}" 에서 추출한 초안. 게시일은 문서에 없어 미확인`,
   }
   ds.documents.push(doc)
   const versionNotes: string[] = [`자동 추출 초안 (${method}, 표 ${opts.tableIndex + 1}: ${table.heading}). 사람 검토 전`]

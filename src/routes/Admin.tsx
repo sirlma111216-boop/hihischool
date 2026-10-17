@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAsync, useDocumentTitle } from '../lib/hooks'
-import { apiGet, apiPost, ApiError } from '../lib/api'
+import { apiGet, apiPost, ApiError, getAdminToken, setAdminToken } from '../lib/api'
 import type { CurriculumBundle, CurriculumVersion, SourceDocument } from '@shared/types'
 import { DOCUMENT_TYPE_LABEL } from '@shared/types'
 import { Button, Empty, ErrorBox, Skeleton, SyntheticBadge, Tone } from '../components/ui'
@@ -19,8 +19,8 @@ export default function Admin() {
   if (me.error) {
     const e = me.error
     return (
-      <Empty title="관리자 인증이 필요합니다">
-        {e instanceof ApiError && e.status === 401 ? '이 영역은 Cloudflare Access 또는 서버 측 토큰으로 보호됩니다. 메뉴를 숨기는 방식이 아니라 API 가 요청마다 인증을 검증합니다. 로컬 개발에서는 .dev.vars 의 DEV_ADMIN_BYPASS=1 로만 열립니다.' : e.message}
+      <Empty title="관리자 인증이 필요합니다" actions={<TokenForm onSaved={me.reload} />}>
+        {e instanceof ApiError && e.status === 401 ? '이 영역은 Cloudflare Access 또는 서버 측 토큰으로 보호됩니다. 메뉴를 숨기는 방식이 아니라 API 가 요청마다 인증을 검증합니다. 관리자 토큰(ADMIN_API_TOKEN)이 있으면 아래에 입력하세요. 이 브라우저 탭에만 보관됩니다.' : e.message}
       </Empty>
     )
   }
@@ -47,6 +47,16 @@ function AdminInner({ me }: { me: Me }) {
       {tab === 'audit' && <Audit />}
       {tab === 'ai' && <AiPanel available={me.aiAvailable} />}
     </>
+  )
+}
+
+function TokenForm({ onSaved }: { onSaved: () => void }) {
+  const [t, setT] = useState(getAdminToken() ?? '')
+  return (
+    <form className="toolbar" onSubmit={(e) => { e.preventDefault(); setAdminToken(t.trim() || null); onSaved() }}>
+      <input className="input" type="password" style={{ width: 320 }} value={t} onChange={(e) => setT(e.target.value)} placeholder="관리자 토큰" aria-label="관리자 토큰" autoComplete="off" />
+      <Button type="submit" variant="primary">토큰으로 열기</Button>
+    </form>
   )
 }
 

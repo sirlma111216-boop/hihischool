@@ -16,7 +16,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { loadDevVars, mapLimit, postAdmin, withRetry, writeJson, emptyIngestDataset } from './common'
+import { loadDevVars, mapLimit, postAdmin, withRetry, writeJson, emptyIngestDataset, loadExistingSchools } from './common'
 import { SEOUL_DISTRICTS } from '../../shared/constants'
 import { normalizeDayNight, normalizeEstablishment, normalizeGender, normalizeSchoolType, slugId } from '../../shared/normalize'
 import type { School, SchoolType, SourceDocument } from '../../shared/types'
@@ -91,17 +91,6 @@ function schoolTypeOf(typeRaw: string, establishmentRaw: string): SchoolType {
 
 const norm = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').replace(/\(.*?\)/g, '')
 
-async function loadExisting(post: string | undefined): Promise<{ id: string; officialName: string; address: string | null }[]> {
-  if (!post) return []
-  try {
-    const res = await fetch(`${post.replace(/\/$/, '')}/api/schools?pageSize=200`)
-    const j = (await res.json()) as { ok: boolean; data?: { items: { school: { id: string; officialName: string; address: string | null; isSynthetic: boolean } }[] } }
-    return (j.data?.items ?? []).filter((i) => !i.school.isSynthetic).map((i) => ({ id: i.school.id, officialName: i.school.officialName, address: i.school.address }))
-  } catch {
-    return []
-  }
-}
-
 async function main() {
   const key = vars.SCHOOLINFO_API_KEY
   if (!key) {
@@ -109,7 +98,7 @@ async function main() {
     process.exit(2)
   }
   const post = arg('post')
-  const existing = await loadExisting(post)
+  const existing = await loadExistingSchools(post)
   const retrievedAt = new Date().toISOString()
   const results = await mapLimit(SEOUL_DISTRICTS, 2, async (d) => {
     const code = config.sggCodes[d.name] ?? d.legalCode
@@ -148,6 +137,12 @@ async function main() {
       const closed = String(row[f.closed] ?? '') === 'Y'
       // 기존 학교와 crosswalk: 정식명 + 도로명 주소 일치 → 같은 학교
       const same = existing.find((e) => norm(e.officialName) === norm(name) && e.address && road && norm(e.address).startsWith(norm(road).slice(0, 12)))
+      const myType = schoolTypeOf(typeRaw, estRaw)
+      const myGender = normalizeGender(String(row[f.gender] ?? ''))
+      const conflicts: School['sourceConflicts'] = [...(same?.sourceConflicts ?? []).filter((c) => !c.values.some((v) => v.provider === 'schoolinfo'))]
+      const neisType = same?.sourceConflicts.find((c) => c.field === 'schoolType')?.values.find((v) => v.provider === 'neis')
+      if (same && same.schoolTypeStatus !== 'no_data' && same.schoolType !== 'unknown' && myType !== 'unknown' && same.schoolType !== myType) conflicts.push({ field: 'schoolType', values: [{ provider: 'schoolinfo', value: `${typeRaw} (${estRaw})` }, { provider: 'neis', value: neisType?.value ?? same.schoolType }] })
+      if (same && same.gender !== 'unknown' && myGender !== 'unknown' && same.gender !== myGender) conflicts.push({ field: 'gender', values: [{ provider: 'schoolinfo', value: String(row[f.gender] ?? '') }, { provider: 'neis', value: same.gender }] })
       const nameOnly = !same && existing.find((e) => norm(e.officialName) === norm(name))
       const id = same ? same.id : slugId('sch', 'si', code)
       if (same) merged.push(`${name} → ${same.id}`)
@@ -162,7 +157,9 @@ async function main() {
         district: r.district,
         districtCode: SEOUL_DISTRICTS.find((d) => d.name === r.district)?.legalCode ?? null,
         schoolType: schoolTypeOf(typeRaw, estRaw),
-        schoolTypeStatus: typeRaw ? 'confirmed' : 'no_data',
+        schoolTypeStatus: conflicts.some((c) => c.field === 'schoolType') ? 'conflict' : typeRaw ? 'confirmed' : 'no_data',
+        schoolSubtype: same?.schoolSubtype ?? null,
+        sourceConflicts: conflicts,
         establishment: normalizeEstablishment(estRaw),
         gender: normalizeGender(String(row[f.gender] ?? '')),
         dayNight: normalizeDayNight(String(row[f.dayNight] ?? '')),

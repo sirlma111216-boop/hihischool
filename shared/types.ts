@@ -87,6 +87,31 @@ export interface GeoPoint {
   retrievedAt: string | null
 }
 
+/** 제공처 간 값 충돌. 검토 전 임의로 고르지 않고 두 값을 함께 보여준다. */
+export interface SourceConflict {
+  field: 'schoolType' | 'gender' | 'establishment' | 'address' | 'homepage' | string
+  values: { provider: 'schoolinfo' | 'neis' | 'manual' | string; value: string }[]
+}
+
+/** 특수목적고 세부 계열 등 공식 세부 구분 원문 → 표시 이름 */
+export function schoolSubtypeLabel(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const s = raw.replace(/\s+/g, '')
+  if (/산업수요|마이스터/.test(s)) return '마이스터고'
+  if (/외국어/.test(s)) return '외국어고'
+  if (/국제/.test(s)) return '국제고'
+  if (/과학/.test(s)) return '과학고'
+  if (/예술/.test(s)) return '예술고'
+  if (/체육/.test(s)) return '체육고'
+  return raw
+}
+
+/** 화면 표시용 유형 문구: 상위 범주 + 세부 구분 (예: '특수목적고 · 마이스터고') */
+export function schoolTypeDisplay(s: { schoolType: SchoolType; schoolSubtype: string | null }): string {
+  const sub = schoolSubtypeLabel(s.schoolSubtype)
+  return sub && sub !== SCHOOL_TYPE_LABEL[s.schoolType] ? `${SCHOOL_TYPE_LABEL[s.schoolType]} · ${sub}` : SCHOOL_TYPE_LABEL[s.schoolType]
+}
+
 export interface School {
   id: string
   officialName: string
@@ -96,6 +121,9 @@ export interface School {
   districtCode: string | null // 법정 시군구 코드 (5자리)
   schoolType: SchoolType
   schoolTypeStatus: DataStatus
+  /** 공식 세부 구분 원문 (나이스 SPCLY_PURPS_HS_ORD_NM 등). 추측하지 않는다 */
+  schoolSubtype: string | null
+  sourceConflicts: SourceConflict[]
   establishment: Establishment
   gender: Gender
   dayNight: DayNight

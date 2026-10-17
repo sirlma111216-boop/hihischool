@@ -12,6 +12,27 @@ export class ApiError extends Error {
   }
 }
 
+/** 관리자 토큰(세션 저장소). 배포 환경에서 Access 없이 관리 화면을 열 때 Bearer 로 보낸다. 서버로만 보내고 로그·URL 에 넣지 않는다. */
+export function getAdminToken(): string | null {
+  try {
+    return sessionStorage.getItem('atlas.adminToken')
+  } catch {
+    return null
+  }
+}
+export function setAdminToken(t: string | null) {
+  try {
+    if (t) sessionStorage.setItem('atlas.adminToken', t)
+    else sessionStorage.removeItem('atlas.adminToken')
+  } catch {
+    /* ignore */
+  }
+}
+function authHeaders(path: string): Record<string, string> {
+  const t = path.startsWith('/api/admin') ? getAdminToken() : null
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 async function handle<T>(res: Response): Promise<T> {
   let body: ApiResult<T> | null = null
   try {
@@ -25,12 +46,12 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export async function apiGet<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, { ...init, headers: { Accept: 'application/json', ...(init.headers ?? {}) } })
+  const res = await fetch(path, { ...init, headers: { Accept: 'application/json', ...authHeaders(path), ...(init.headers ?? {}) } })
   return handle<T>(res)
 }
 
 export async function apiPost<T>(path: string, body: unknown, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, { method: 'POST', ...init, headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(init.headers ?? {}) }, body: JSON.stringify(body) })
+  const res = await fetch(path, { method: 'POST', ...init, headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders(path), ...(init.headers ?? {}) }, body: JSON.stringify(body) })
   return handle<T>(res)
 }
 

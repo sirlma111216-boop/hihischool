@@ -34,6 +34,7 @@ interface NeisRow {
   HS_GNRL_BUSNS_SC_NM: string
   SPCLY_PURPS_HS_ORD_NM: string
   DGHT_SC_NM: string
+  ENE_BFE_SEHF_SC_NM: string
   FOND_YMD: string
   FOAS_MEMRD: string
   LOAD_DTM: string
@@ -119,6 +120,13 @@ async function main() {
     if (same) mergedLog.push(`${r.SCHUL_NM} → ${same.id}`)
     if (nameOnly) pendingDup.push(`${r.SCHUL_NM}: 기존 ${nameOnly.id} 와 이름만 같음 (주소 다름) → 별도 학교, 코드 pending`)
     const typeRaw = r.HS_SC_NM || r.SPCLY_PURPS_HS_ORD_NM || r.HS_GNRL_BUSNS_SC_NM
+    // 나이스 '자율고' 는 설립으로 자공/자사 구분 (학교알리미와 같은 규칙)
+    const myType: School['schoolType'] = /자율/.test(typeRaw) ? (/사립/.test(r.FOND_SC_NM) ? 'autonomous_private' : /공립|국립/.test(r.FOND_SC_NM) ? 'autonomous_public' : 'unknown') : normalizeSchoolType(typeRaw)
+    const myGender = normalizeGender(r.COEDU_SC_NM)
+    // 기존(학교알리미) 값과 다르면 충돌로 기록하고 임의로 고르지 않는다
+    const conflicts: School['sourceConflicts'] = [...(same?.sourceConflicts ?? []).filter((c) => !c.values.some((v) => v.provider === 'neis'))]
+    if (same && same.schoolTypeStatus === 'confirmed' && same.schoolType !== 'unknown' && myType !== 'unknown' && same.schoolType !== myType) conflicts.push({ field: 'schoolType', values: [{ provider: 'schoolinfo', value: same.schoolType }, { provider: 'neis', value: `${r.HS_SC_NM}${r.SPCLY_PURPS_HS_ORD_NM ? ' / ' + r.SPCLY_PURPS_HS_ORD_NM : ''} (${r.FOND_SC_NM})` }] })
+    if (same && same.gender !== 'unknown' && myGender !== 'unknown' && same.gender !== myGender) conflicts.push({ field: 'gender', values: [{ provider: 'schoolinfo', value: same.gender }, { provider: 'neis', value: r.COEDU_SC_NM }] })
     const school: School = {
       id,
       officialName: r.SCHUL_NM,
@@ -127,8 +135,11 @@ async function main() {
       district,
       districtCode: SEOUL_DISTRICTS.find((d) => d.name === district)?.legalCode ?? null,
       // 병합 시 더 세분화된 기존 값(학교알리미 자공/자사 구분, 좌표)을 유지한다
-      schoolType: same && same.schoolTypeStatus === 'confirmed' ? (same.schoolType as School['schoolType']) : normalizeSchoolType(typeRaw),
-      schoolTypeStatus: same && same.schoolTypeStatus === 'confirmed' ? 'confirmed' : typeRaw ? 'confirmed' : 'no_data',
+      schoolType: same && (same.schoolTypeStatus === 'confirmed' || same.schoolTypeStatus === 'conflict') ? (same.schoolType as School['schoolType']) : myType,
+      // 2026-10-17 사용자 결정: 유형은 학교알리미 공시 값을 따른다. 나이스 값이 다르면 sourceConflicts 에 기록만 남긴다.
+      schoolTypeStatus: same && (same.schoolTypeStatus === 'confirmed' || same.schoolTypeStatus === 'conflict') ? 'confirmed' : typeRaw ? 'confirmed' : 'no_data',
+      schoolSubtype: r.SPCLY_PURPS_HS_ORD_NM?.trim() || same?.schoolSubtype || null,
+      sourceConflicts: conflicts,
       establishment: normalizeEstablishment(r.FOND_SC_NM),
       gender: normalizeGender(r.COEDU_SC_NM),
       dayNight: normalizeDayNight(r.DGHT_SC_NM),
@@ -144,6 +155,7 @@ async function main() {
       exclusionReason: null,
     }
     ds.schools.push(school)
+    if (r.ENE_BFE_SEHF_SC_NM) ds.facts.push({ id: `fact_${id}_admission_period`, schoolId: id, field: 'admission.period_raw', value: r.ENE_BFE_SEHF_SC_NM, unit: null, basisYear: null, definition: '나이스 입시 전후기 구분 원문 (선발 주체로 자동 변환하지 않음)', validFrom: null, validTo: null, status: 'confirmed', evidenceIds: [`ev_${docId}`], derivation: null, reviewerNote: null })
     ds.facts.push({ id: `fact_${id}_founded`, schoolId: id, field: 'school.founded', value: r.FOND_YMD || null, unit: null, basisYear: null, definition: '설립일 (나이스 기본정보)', validFrom: null, validTo: null, status: r.FOND_YMD ? 'confirmed' : 'no_data', evidenceIds: [`ev_${docId}`], derivation: null, reviewerNote: null })
   }
   const out = arg('out', path.join(root, 'data/ingest/neis.json'))!

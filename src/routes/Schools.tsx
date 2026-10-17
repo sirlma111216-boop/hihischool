@@ -6,7 +6,7 @@ import { apiGet, qs } from '../lib/api'
 import type { SchoolListItem, SchoolsResponse } from '../lib/types'
 import { Button, Empty, ErrorBox, Skeleton, StatusBadge, SyntheticBadge, Tone } from '../components/ui'
 import { DISTRICT_NAMES, MAX_COMPARE_SCHOOLS } from '@shared/constants'
-import { ESTABLISHMENT_LABEL, GENDER_LABEL, SCHOOL_TYPE_LABEL, type Establishment, type Gender, type SchoolType } from '@shared/types'
+import { ESTABLISHMENT_LABEL, GENDER_LABEL, SCHOOL_TYPE_LABEL, schoolTypeDisplay, type Establishment, type Gender, type SchoolType } from '@shared/types'
 import { haversineKm, formatStraightLine } from '@shared/geo'
 import type { MapOrigin } from '../components/SchoolMap'
 
@@ -218,7 +218,7 @@ export default function Schools() {
                     <tr key={it.school.id}>
                       <th scope="row"><Link to={`/schools/${it.school.id}`} onClick={remember}>{it.school.officialName}</Link>{it.school.isSynthetic && <> <SyntheticBadge /></>}</th>
                       <td>{it.school.district}</td>
-                      <td>{SCHOOL_TYPE_LABEL[it.school.schoolType]}</td>
+                      <td>{schoolTypeDisplay(it.school)}{it.school.schoolTypeStatus === 'conflict' && <> <StatusBadge status="conflict" /></>}</td>
                       <td>{ESTABLISHMENT_LABEL[it.school.establishment]}</td>
                       <td>{GENDER_LABEL[it.school.gender]}</td>
                       <td><CurrStatus s={it.curriculumStatus} years={it.publishedCohortYears} /></td>
@@ -297,7 +297,7 @@ function SchoolRow({ item, origin, onOpen, compare, onToggleCompare, compact }: 
             {s.isSynthetic && <> <SyntheticBadge /></>}
           </h3>
           <div className="small muted">
-            {s.district} · {SCHOOL_TYPE_LABEL[s.schoolType]} · {ESTABLISHMENT_LABEL[s.establishment]} · {GENDER_LABEL[s.gender]}
+            {s.district} · {schoolTypeDisplay(s)}{s.schoolTypeStatus === 'conflict' ? ' (유형 자료 충돌)' : ''} · {ESTABLISHMENT_LABEL[s.establishment]} · {GENDER_LABEL[s.gender]}
             {s.tracks.length > 0 && <> · {s.tracks.map((t) => t.name).join('/')}</>}
             {dist && <> · {dist}</>}
             {!s.geo && <> · 좌표 없음</>}
@@ -336,7 +336,7 @@ function MapSelectionCard({ item, origin, cohortYear, onClose, onOpen }: { item:
         <div style={{ minWidth: 0 }}>
           <div className="eyebrow">지도에서 선택 · {s.district}</div>
           <h3 style={{ margin: '4px 0' }}>{s.officialName}{s.isSynthetic && <> <SyntheticBadge /></>}</h3>
-          <div className="small muted">{SCHOOL_TYPE_LABEL[s.schoolType]} · {ESTABLISHMENT_LABEL[s.establishment]} · {GENDER_LABEL[s.gender]}{dist ? ` · ${dist}` : ''}</div>
+          <div className="small muted">{schoolTypeDisplay(s)} · {ESTABLISHMENT_LABEL[s.establishment]} · {GENDER_LABEL[s.gender]}{dist ? ` · ${dist}` : ''}</div>
           {s.address && <div className="small muted">{s.address}</div>}
         </div>
         <Button size="sm" variant="quiet" onClick={onClose} aria-label="선택 해제">×</Button>

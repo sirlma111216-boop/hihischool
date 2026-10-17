@@ -9,7 +9,7 @@ import { expandGrid, type CapturedTable, type CapturedCell } from './htmlmatrix'
 interface Item { text: string; x: number; y: number; w: number; h: number }
 
 
-const LINE_MAX = 2.6 // 이보다 얇은 사각형은 선으로 본다
+const LINE_MAX = 4.5 // 이보다 얇은 사각형은 선으로 본다 (굵은 머리글 테두리 포함)
 const EPS = 1.6
 
 function cluster(values: number[], eps = EPS): number[] {
@@ -36,7 +36,7 @@ export function gridFromPage(page: NonNullable<ExtractionResult['pages'][number]
   const items: Item[] = page.lines.flatMap((l) => l.items ?? [])
   const rects = page.rects ?? []
   if (items.length === 0 || rects.length === 0) return null
-  const semItems = items.filter((i) => /^[12]학기$/.test(i.text.trim()))
+  const semItems = items.filter((i) => /^([123]학년)?[12]학기$/.test(i.text.replace(/\s+/g, '')))
   if (semItems.length < 2) return null
   const hLines = rects.filter((r) => r.y1 - r.y0 <= LINE_MAX && r.x1 - r.x0 > 8)
   const vLines = rects.filter((r) => r.x1 - r.x0 <= LINE_MAX && r.y1 - r.y0 > 6)

@@ -30,6 +30,7 @@ const listQuery = z.object({
   dayNight: z.string().max(100).optional(),
   course: z.string().max(100).optional(),
   program: z.string().max(100).optional(),
+  subtype: z.string().max(50).optional(),
   curriculumStatus: z.enum(['published', 'draft_only', 'none', 'any']).optional().default('any'),
   cohortYear: z.coerce.number().int().min(2015).max(2040).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -60,6 +61,7 @@ publicRoutes.get('/schools', async (c) => {
   const dayNights = new Set((q.dayNight ? q.dayNight.split(',') : []).filter(Boolean))
   const courseKeyword = q.course ?? pq.courseKeyword[0] ?? null
   const programKeyword = q.program ?? pq.programKeyword[0] ?? null
+  const subtypeKeyword = q.subtype ?? pq.subtypeKeyword[0] ?? null
   const freeText = pq.text
 
   const rows = await c.env.DB.prepare(`SELECT * FROM schools WHERE (is_synthetic = 0 OR ? = 1) ORDER BY official_name`).bind(allowSyn ? 1 : 0).all<Row>()
@@ -127,6 +129,7 @@ publicRoutes.get('/schools', async (c) => {
     if (ests.size && !ests.has(school.establishment)) continue
     if (genders.size && !genders.has(school.gender)) continue
     if (dayNights.size && !dayNights.has(school.dayNight)) continue
+    if (subtypeKeyword && !(school.schoolSubtype ?? '').replace(/\s+/g, '').includes(subtypeKeyword.replace(/\s+/g, ''))) continue
     if (freeText && !matchesName(freeText, [school.officialName, school.shortName ?? '', ...school.aliases, school.district, school.address ?? '', ...school.tracks.map((t) => t.name)])) continue
 
     const py = [...(pubYears.get(school.id) ?? [])].sort((a, b) => b - a)

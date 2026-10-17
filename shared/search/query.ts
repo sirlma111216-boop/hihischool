@@ -15,6 +15,7 @@ export interface ParsedQuery {
   establishment: Establishment[]
   courseKeyword: string[]
   programKeyword: string[]
+  subtypeKeyword: string[]
   requireConfirmedCourse: boolean
   chips: { key: string; label: string; value: string }[]
   unrecognized: string[]
@@ -37,7 +38,16 @@ const EST_WORDS: [RegExp, Establishment][] = [
   [/공립/, 'public'],
   [/사립/, 'private'],
 ]
-const PROGRAM_WORDS = ['과학중점', '예술중점', '체육중점', '외국어', '국제', '영재', 'SW', '소프트웨어', 'AI', '인공지능', '디자인', '마이스터']
+const PROGRAM_WORDS = ['과학중점', '예술중점', '체육중점', '영재', 'SW', '소프트웨어', 'AI', '인공지능', '디자인']
+/** 특수목적고 세부 계열 단어 → 공식 세부 구분 원문 검색어 (school_subtype LIKE) */
+const SUBTYPE_WORDS: [RegExp, string, string][] = [
+  [/마이스터고|마이스터/, '산업수요', '마이스터고'],
+  [/외국어고|외고/, '외국어', '외국어고'],
+  [/국제고/, '국제', '국제고'],
+  [/과학고/, '과학', '과학고'],
+  [/예술고|예고/, '예술', '예술고'],
+  [/체육고/, '체육', '체육고'],
+]
 
 export function parseQuery(raw: string): ParsedQuery {
   let text = raw.trim()
@@ -49,6 +59,7 @@ export function parseQuery(raw: string): ParsedQuery {
     establishment: [],
     courseKeyword: [],
     programKeyword: [],
+    subtypeKeyword: [],
     requireConfirmedCourse: false,
     chips: [],
     unrecognized: [],
@@ -60,6 +71,13 @@ export function parseQuery(raw: string): ParsedQuery {
     if (re.test(text)) {
       out.district.push(d)
       out.chips.push({ key: 'district', label: `자치구: ${d}`, value: d })
+      text = text.replace(re, ' ')
+    }
+  }
+  for (const [re, kw, label] of SUBTYPE_WORDS) {
+    if (re.test(text)) {
+      out.subtypeKeyword.push(kw)
+      out.chips.push({ key: 'subtype', label: `세부 유형: ${label}`, value: kw })
       text = text.replace(re, ' ')
     }
   }

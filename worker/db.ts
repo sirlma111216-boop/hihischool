@@ -45,6 +45,8 @@ export function rowToSchool(r: Row, aliases: string[] = [], codes: School['codes
     districtCode: str(r.district_code),
     schoolType: String(r.school_type) as School['schoolType'],
     schoolTypeStatus: String(r.school_type_status) as School['schoolTypeStatus'],
+    schoolSubtype: str(r.school_subtype),
+    sourceConflicts: json<School['sourceConflicts']>(r.source_conflicts, []),
     establishment: String(r.establishment) as School['establishment'],
     gender: String(r.gender) as School['gender'],
     dayNight: String(r.day_night) as School['dayNight'],
