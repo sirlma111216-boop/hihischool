@@ -22,7 +22,7 @@
     "ingest:schoolinfo": "tsx scripts/ingest/schoolinfo.ts",
     "docs:extract": "tsx scripts/docs/extract.ts",
     "docs:package": "tsx scripts/docs/package-review.ts",
-    "docs:fixtures": "tsx scripts/docs/make-fixture-pdf.ts",
+    "docs:fixtures": "tsx scripts/docs/make-fixtures.ts",
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types"
   },
