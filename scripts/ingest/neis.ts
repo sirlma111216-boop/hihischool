@@ -39,7 +39,7 @@ interface NeisRow {
   LOAD_DTM: string
 }
 
-async function fetchPage(pIndex: number, key: string | undefined): Promise<{ rows: NeisRow[]; total: number | null; note: string | null }> {
+async function fetchPage(pIndex: number, key: string | undefined, schoolName?: string): Promise<{ rows: NeisRow[]; total: number | null; note: string | null }> {
   const u = new URL('https://open.neis.go.kr/hub/schoolInfo')
   if (key) u.searchParams.set('KEY', key)
   u.searchParams.set('Type', 'json')
@@ -47,6 +47,7 @@ async function fetchPage(pIndex: number, key: string | undefined): Promise<{ row
   u.searchParams.set('pSize', '1000')
   u.searchParams.set('ATPT_OFCDC_SC_CODE', 'B10')
   u.searchParams.set('SCHUL_KND_SC_NM', '고등학교')
+  if (schoolName) u.searchParams.set('SCHUL_NM', schoolName) // 정식명 정확 일치 조회 (키 없이도 해당 행만 반환됨)
   const res = await fetch(u, { headers: { 'User-Agent': 'highschool-atlas-ingest/0.1' } })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const j = (await res.json()) as { schoolInfo?: [{ head: [{ list_total_count: number }, { RESULT: { CODE: string; MESSAGE: string } }] }, { row: NeisRow[] }]; RESULT?: { CODE: string; MESSAGE: string } }
@@ -58,18 +59,19 @@ async function fetchPage(pIndex: number, key: string | undefined): Promise<{ row
 
 async function main() {
   const key = vars.NEIS_API_KEY
+  const schoolName = arg('name') // --name <정식명> : 특정 학교 한 곳만 (동명이교는 주소로 사람이 확인)
   const retrievedAt = new Date().toISOString()
   const all: NeisRow[] = []
   let total: number | null = null
   let note: string | null = null
   for (let p = 1; p <= 5; p++) {
-    const r = await withRetry(() => fetchPage(p, key))
+    const r = await withRetry(() => fetchPage(p, key, schoolName))
     note = r.note
     total = r.total
     all.push(...r.rows)
-    if (!key || r.rows.length < 1000) break // 키 없이는 표본 1페이지만
+    if (!key || schoolName || r.rows.length < 1000) break // 키 없이는 표본 1페이지만
   }
-  const sampleOnly = !key
+  const sampleOnly = !key && !schoolName
   console.log(`나이스 응답: ${all.length}행${total !== null ? ` / 전체 ${total}` : ''}${sampleOnly ? ' (인증키 없음 → 표본만, 서울 전체 아님)' : ''}${note ? ` · ${note}` : ''}`)
 
   const docId = `doc_neis_schoolinfo_${retrievedAt.slice(0, 10)}`
@@ -144,9 +146,10 @@ async function main() {
   const post = arg('post')
   if (post) {
     const token = vars.ADMIN_API_TOKEN
-    await postAdmin(post, token, '/api/admin/import', { dataset: ds, keepStatus: true, jobLabel: `neis basic ${retrievedAt}` })
-    await postAdmin(post, token, '/api/admin/jobs/coverage', { jobKind: 'neis_basic', districts, note: sampleOnly ? '표본만' : `전체 ${total}` })
-    console.log('관리 API 에 반영 완료 (학교 기본정보 + 자치구 범위)')
+    await postAdmin(post, token, '/api/admin/import', { dataset: ds, keepStatus: true, jobLabel: `neis basic ${schoolName ?? ''} ${retrievedAt}` })
+    // 학교 한 곳 조회는 자치구 범위를 바꾸지 않는다 (해당 구 전체 수집이 아님)
+    if (!schoolName) await postAdmin(post, token, '/api/admin/jobs/coverage', { jobKind: 'neis_basic', districts, note: sampleOnly ? '표본만' : `전체 ${total}` })
+    console.log(`관리 API 에 반영 완료 (학교 기본정보${schoolName ? '' : ' + 자치구 범위'})`)
   } else {
     console.log('관리 API 반영은 --post <baseUrl> 로 실행합니다.')
   }

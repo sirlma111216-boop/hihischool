@@ -9,7 +9,7 @@ import { formatDateKo } from '@shared/format'
 const PdfViewer = lazy(() => import('./PdfViewer'))
 
 const REVIEW_LABEL: Record<string, string> = { draft: '초안', in_review: '검토 중', approved: '검토 완료', rejected: '반려', superseded: '대체됨' }
-const METHOD_LABEL: Record<string, string> = { pdf_text: 'PDF 텍스트', pdf_table: 'PDF 표', ocr: 'OCR (스캔)', hwpx: 'HWPX 구조', xlsx: 'XLSX', manual: '수동 입력', api: 'API', unknown: '미상' }
+const METHOD_LABEL: Record<string, string> = { pdf_text: 'PDF 텍스트', pdf_table: 'PDF 표', ocr: 'OCR (스캔)', hwpx: 'HWPX 구조', xlsx: 'XLSX', html_table: '공식 웹페이지 표', manual: '수동 입력', api: 'API', unknown: '미상' }
 
 export function EvidenceDrawer() {
   const { evidenceId, close } = useEvidence()

@@ -179,7 +179,7 @@ export interface Evidence {
   boundingBox: { x: number; y: number; width: number; height: number; pageWidth: number; pageHeight: number } | null
   paragraphAnchor: string | null
   excerpt: string | null
-  extractionMethod: 'pdf_text' | 'pdf_table' | 'ocr' | 'hwpx' | 'xlsx' | 'manual' | 'api' | 'unknown'
+  extractionMethod: 'pdf_text' | 'pdf_table' | 'ocr' | 'hwpx' | 'xlsx' | 'html_table' | 'manual' | 'api' | 'unknown'
   reviewedBy: string | null
   reviewedAt: string | null
   isSynthetic: boolean

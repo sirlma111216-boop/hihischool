@@ -24,7 +24,9 @@
     "docs:package": "tsx scripts/docs/package-review.ts",
     "docs:fixtures": "tsx scripts/docs/make-fixtures.ts",
     "deploy": "wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "docs:package-matrix": "tsx scripts/docs/package-matrix.ts",
+    "db:export-sql": "tsx scripts/db/export-sql.ts"
   },
   "dependencies": {
     "hono": "^4.9.0",

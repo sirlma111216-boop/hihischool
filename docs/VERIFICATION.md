@@ -4,9 +4,9 @@
 
 | 상태 | 결과 |
 | --- | --- |
-| 코드 테스트 | ✅ typecheck(app/worker/node) · lint · build · 단위 43 · Worker+D1 통합 25 · Playwright E2E 18 (3 뷰포트 × 6) 모두 통과 |
-| 실제 서울 학교 자료 확보 | ❌ 미수집 (API 키 없음, 원문 다운로드·검토는 운영자 작업). 가상 fixture 로 경로만 검증 |
-| 사람 검토 완료 자료 | ❌ 없음 (가상 fixture 의 '검토자(가상)' 는 표시용) |
+| 코드 테스트 | ✅ typecheck(app/worker/node) · lint · build · 단위 45 · Worker+D1 통합 25 · Playwright E2E 18 (3 뷰포트 × 6) 모두 통과 |
+| 실제 서울 학교 자료 확보 | 🟡 **부분**: 나이스 기본정보 6개교(표본 5 + 정식명 조회 1), 서울도시과학기술고 2026 입학생 학과별 편제표 4개(공식 홈페이지 HTML 표)를 추출해 **초안**으로 가져옴. 가락고·강서고는 공식 PDF URL 확인(다운로드는 사용자 승인 대기). 상세: DATA_COVERAGE.md |
+| 사람 검토 완료 자료 | ❌ 없음 (서울도시과학기술고 초안 4건은 검토 대기; 가상 fixture 의 '검토자(가상)' 는 표시용) |
 | 공개 배포 | ✅ https://highschool-atlas.sirlma.workers.dev (D1 migrations 적용, 데이터 0건, 관리 API 401). GitHub `main` push 완료. Workers Builds Git 연결은 대시보드 로그인 필요 → 사용자 작업 (DEPLOYMENT.md 경로 A/B) |
 
 ## 실행 환경

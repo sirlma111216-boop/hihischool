@@ -49,17 +49,28 @@ function periodRangeLabel(group: SelectionGroup, members: CurriculumOffering[]):
   }
 }
 
-/** 교차 편성 그룹을 한 단위로 묶어 '선택 단위' 수를 센다. */
-function countSelectionUnits(members: CurriculumOffering[]): number {
-  const seen = new Set<string>()
-  let n = 0
+/**
+ * '선택 단위' 키: 교차 편성 그룹이 있으면 그 그룹, 없으면 같은 선택군 안의 같은 과목명.
+ * 한 과목이 두 학기에 걸쳐 편성된 경우(예: 3학년 1·2학기 연속 과목) 두 학기를 고르는 것은 선택 1회다.
+ * (학점은 교차 편성만 한 번으로 세고, 연속 과목은 두 학기 학점을 모두 더한다 — credits.ts)
+ */
+function unitKey(o: CurriculumOffering): string {
+  return o.crossSemesterGroup ?? `name:${o.courseOriginalName.replace(/\s+/g, '')}`
+}
+
+function groupByUnit(members: CurriculumOffering[]): CurriculumOffering[][] {
+  const map = new Map<string, CurriculumOffering[]>()
   for (const m of members) {
-    const key = m.crossSemesterGroup ?? m.id
-    if (seen.has(key)) continue
-    seen.add(key)
-    n += 1
+    const k = unitKey(m)
+    if (!map.has(k)) map.set(k, [])
+    map.get(k)!.push(m)
   }
-  return n
+  return [...map.values()]
+}
+
+/** 교차 편성·연속 편성을 한 단위로 묶어 '선택 단위' 수를 센다. */
+function countSelectionUnits(members: CurriculumOffering[]): number {
+  return groupByUnit(members).length
 }
 
 export function validatePlan(input: ValidatePlanInput): PlanValidationResult {
@@ -153,14 +164,14 @@ export function validatePlan(input: ValidatePlanInput): PlanValidationResult {
         evidenceIds: g.evidenceIds,
         message: `${g.label}(${range})의 선택 수(${g.maxSelections}과목)를 초과합니다. 선택한 과목: ${chosen.map((c) => c.courseOriginalName).join(', ')}`,
       })
-      // 근거 안에서 가능한 다른 조합: 선택 수 한도만큼의 부분집합 (작은 경우만 열거)
-      const cands = dedupeCrossSemester(chosen)
-      for (const combo of chooseK(cands, g.maxSelections).slice(0, 6)) {
+      // 근거 안에서 가능한 다른 조합: 선택 단위(과목) 기준 부분집합 (작은 경우만 열거). 단위에 속한 학기 편성은 함께 포함.
+      const unitGroups = groupByUnit(chosen)
+      for (const combo of chooseK(unitGroups, g.maxSelections).slice(0, 6)) {
         alternatives.push({
           groupId: g.id,
           groupLabel: g.label,
-          offeringIds: combo.map((c) => c.id),
-          description: `${g.label}에서 ${combo.map((c) => c.courseOriginalName).join(' + ')} 만 선택`,
+          offeringIds: combo.flatMap((u) => u.map((c) => c.id)),
+          description: `${g.label}에서 ${combo.map((u) => u[0]!.courseOriginalName).join(' + ')} 만 선택`,
         })
       }
     }
