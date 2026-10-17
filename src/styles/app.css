@@ -242,9 +242,13 @@ table.data .sortbtn { background: none; border: 0; font: inherit; font-weight: i
 .brief .body { padding: 22px 28px; }
 .brief section { margin: 18px 0; }
 .brief h2 { font-size: 18px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-.brief .kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 15px; }
-.brief .kv dt { color: var(--muted); }
-.brief .kv dd { margin: 0; }
+/* 항목(dt)·값(dd) 목록: 라벨은 작고 흐리게, 값은 진하게 — 어디서나 같은 규칙 */
+.kv { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 8px 14px; margin: 0; align-items: baseline; font-size: 15px; }
+.kv dt { color: var(--muted); font-size: 13.5px; font-weight: 500; letter-spacing: 0.1px; padding-top: 1px; }
+.kv dd { margin: 0; color: var(--ink); font-weight: 600; line-height: 1.5; }
+.kv dd .muted, .kv dd .cellnote { font-weight: 400; }
+.brief .kv { gap: 6px 12px; }
+@media (max-width: 480px) { .kv { grid-template-columns: 1fr; gap: 2px 0; } .kv dt { margin-top: 10px; } }
 .brief .interpretation { margin: 8px 0; }
 .brief ul { padding-left: 18px; margin: 6px 0; }
 .brief li { margin: 3px 0; }
