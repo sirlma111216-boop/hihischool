@@ -44,18 +44,29 @@ for (const d of merged.documents) if (d.reviewStatus === 'approved' && d.documen
 const stmts = datasetStatements(merged)
 let sql = `-- 생성 ${new Date().toISOString()} · 입력: ${files.join(', ')} · 버전은 모두 draft\n` + statementsToSql(stmts) + '\n'
 if (coverageFile) {
-  const cov = JSON.parse(readFileSync(coverageFile, 'utf8')) as { retrievedAt: string; sampleOnly: boolean; total: number | null; dataset: Dataset }
-  const per = new Map<string, number>()
-  for (const s of cov.dataset.schools) {
-    const d = s.district || districtFromAddress(s.address, DISTRICT_NAMES)
-    if (d) per.set(d, (per.get(d) ?? 0) + 1)
-  }
-  const jobId = `job_sql_${cov.retrievedAt.replace(/[^0-9]/g, '').slice(0, 14)}`
+  const cov = JSON.parse(readFileSync(coverageFile, 'utf8')) as { retrievedAt: string; sampleOnly?: boolean; total?: number | null; succeeded?: ({ district: string; count: number } | string)[]; failed?: { district: string; error: string }[]; dataset: Dataset }
   const esc = (s: string) => s.replace(/'/g, "''")
-  sql += `INSERT OR REPLACE INTO ingestion_jobs (id, kind, status, scope_json, started_at, finished_at, result_json, actor) VALUES ('${jobId}', 'neis_basic', '${cov.sampleOnly ? 'partial' : 'succeeded'}', '${esc(JSON.stringify({ note: cov.sampleOnly ? '인증키 없는 표본' : `전체 ${cov.total}`, districts: per.size }))}', '${cov.retrievedAt}', '${cov.retrievedAt}', '${esc(JSON.stringify({ rows: cov.dataset.schools.length, total: cov.total }))}', 'sql-export');\n`
-  for (const d of SEOUL_DISTRICTS) {
-    if (!per.has(d.name)) continue
-    sql += `UPDATE coverage_districts SET status = '${cov.sampleOnly ? 'partial' : 'succeeded'}', school_count = ${per.get(d.name)}, last_attempt_at = '${cov.retrievedAt}', error = ${cov.sampleOnly ? "'인증키 없는 표본 수집 (전체 아님)'" : 'NULL'}, job_id = '${jobId}' WHERE district = '${d.name}';\n`
+  const jobId = `job_sql_${cov.retrievedAt.replace(/[^0-9]/g, '').slice(0, 14)}`
+  if (Array.isArray(cov.succeeded) && cov.succeeded.length && typeof cov.succeeded[0] === 'object') {
+    // 학교알리미 구별 수집 결과
+    const ok = cov.succeeded as { district: string; count: number }[]
+    const bad = cov.failed ?? []
+    const status = bad.length === 0 ? 'succeeded' : ok.length ? 'partial' : 'failed'
+    sql += `INSERT OR REPLACE INTO ingestion_jobs (id, kind, status, scope_json, started_at, finished_at, result_json, actor) VALUES ('${jobId}', 'schoolinfo_basic', '${status}', '${esc(JSON.stringify({ districts: ok.length + bad.length }))}', '${cov.retrievedAt}', '${cov.retrievedAt}', '${esc(JSON.stringify({ succeeded: ok.length, failed: bad.length, schools: cov.dataset.schools.length }))}', 'sql-export');\n`
+    for (const s of ok) sql += `UPDATE coverage_districts SET status = 'succeeded', school_count = ${s.count}, last_attempt_at = '${cov.retrievedAt}', error = NULL, job_id = '${jobId}' WHERE district = '${esc(s.district)}';\n`
+    for (const b of bad) sql += `UPDATE coverage_districts SET status = 'failed', last_attempt_at = '${cov.retrievedAt}', error = '${esc(b.error)}', job_id = '${jobId}' WHERE district = '${esc(b.district)}';\n`
+  } else {
+    // 나이스 표본/전체 수집 결과
+    const per = new Map<string, number>()
+    for (const s of cov.dataset.schools) {
+      const d = s.district || districtFromAddress(s.address, DISTRICT_NAMES)
+      if (d) per.set(d, (per.get(d) ?? 0) + 1)
+    }
+    sql += `INSERT OR REPLACE INTO ingestion_jobs (id, kind, status, scope_json, started_at, finished_at, result_json, actor) VALUES ('${jobId}', 'neis_basic', '${cov.sampleOnly ? 'partial' : 'succeeded'}', '${esc(JSON.stringify({ note: cov.sampleOnly ? '인증키 없는 표본' : `전체 ${cov.total}`, districts: per.size }))}', '${cov.retrievedAt}', '${cov.retrievedAt}', '${esc(JSON.stringify({ rows: cov.dataset.schools.length, total: cov.total }))}', 'sql-export');\n`
+    for (const d of SEOUL_DISTRICTS) {
+      if (!per.has(d.name)) continue
+      sql += `UPDATE coverage_districts SET status = '${cov.sampleOnly ? 'partial' : 'succeeded'}', school_count = ${per.get(d.name)}, last_attempt_at = '${cov.retrievedAt}', error = ${cov.sampleOnly ? "'인증키 없는 표본 수집 (전체 아님)'" : 'NULL'}, job_id = '${jobId}' WHERE district = '${d.name}';\n`
+    }
   }
 }
 mkdirSync(path.dirname(out), { recursive: true })

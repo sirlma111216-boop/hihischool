@@ -28,7 +28,7 @@ export function normalizeGender(raw: string | null | undefined): Gender {
   if (!s) return 'unknown'
   if (/남녀공학|공학/.test(s)) return 'coed'
   if (/^남$|남자|남학교|남고/.test(s)) return 'boys'
-  if (/^여$|여자|여학교|여고/.test(s)) return 'girls'
+  if (/^여$|^녀$|여자|여학교|여고/.test(s)) return 'girls' // 학교알리미 COEDU_SC_CODE 는 '남' / '녀' / '남녀공학'
   return 'unknown'
 }
 

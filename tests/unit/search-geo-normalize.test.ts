@@ -57,6 +57,8 @@ describe('정규화', () => {
     expect(normalizeSchoolType('자율형 사립고등학교')).toBe('autonomous_private')
     expect(normalizeGender('혼합')).toBe('unknown')
     expect(normalizeGender('남녀공학')).toBe('coed')
+    expect(normalizeGender('녀')).toBe('girls') // 학교알리미 원문 값
+    expect(normalizeGender('남')).toBe('boys')
     expect(districtFromAddress('서울특별시 강남구 역삼동', DISTRICT_NAMES)).toBe('강남구')
     expect(districtFromAddress('서울특별시', DISTRICT_NAMES)).toBeNull()
   })
