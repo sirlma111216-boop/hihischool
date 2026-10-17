@@ -34,14 +34,16 @@ const listQuery = z.object({
   curriculumStatus: z.enum(['published', 'draft_only', 'none', 'any']).optional().default('any'),
   cohortYear: z.coerce.number().int().min(2015).max(2040).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).optional().default(50),
+  pageSize: z.coerce.number().int().min(1).max(500).optional().default(50), // 지도 보기는 서울 전체(323교)를 한 번에 받는다
   sort: z.enum(['name', 'district']).optional().default('name'),
 })
 
 export interface SchoolListItem {
   school: School
-  curriculumStatus: 'published' | 'draft_only' | 'none' | 'other_cohort_only'
+  curriculumStatus: 'published' | 'draft_only' | 'none' | 'other_cohort_only' | 'other_cohort_draft'
   publishedCohortYears: number[]
+  /** 검토 대기 초안이 있는 입학연도 (공개 전이라 내용은 관리 화면에서만 본다) */
+  draftCohortYears: number[]
   courseMatch: { status: 'confirmed' | 'confirmed_absent' | 'unknown'; offerings: { name: string; grade: number; semester: number; credit: number | null; requirement: string; groupId: string | null }[] } | null
   programMatch: { name: string; kind: string; phase: string; status: string }[] | null
 }
@@ -139,9 +141,10 @@ publicRoutes.get('/schools', async (c) => {
       if (py.includes(q.cohortYear)) curriculumStatus = 'published'
       else if (dy.has(q.cohortYear)) curriculumStatus = 'draft_only'
       else if (py.length > 0) curriculumStatus = 'other_cohort_only'
+      else if (dy.size > 0) curriculumStatus = 'other_cohort_draft'
       else curriculumStatus = 'none'
     } else curriculumStatus = py.length > 0 ? 'published' : dy.size > 0 ? 'draft_only' : 'none'
-    if (q.curriculumStatus !== 'any' && curriculumStatus !== q.curriculumStatus && !(q.curriculumStatus === 'none' && curriculumStatus === 'other_cohort_only')) continue
+    if (q.curriculumStatus !== 'any' && curriculumStatus !== q.curriculumStatus && !(q.curriculumStatus === 'none' && curriculumStatus === 'other_cohort_only') && !(q.curriculumStatus === 'draft_only' && curriculumStatus === 'other_cohort_draft')) continue
 
     let courseMatch: SchoolListItem['courseMatch'] = null
     if (courseHits) {
@@ -149,7 +152,7 @@ publicRoutes.get('/schools', async (c) => {
     }
     const programMatch = programHits ? (programHits.get(school.id) ?? null) : null
     if (programHits && !programMatch) continue
-    all.push({ school, curriculumStatus, publishedCohortYears: py, courseMatch, programMatch })
+    all.push({ school, curriculumStatus, publishedCohortYears: py, draftCohortYears: [...dy].sort((a, b) => b - a), courseMatch, programMatch })
   }
   if (q.sort === 'district') all.sort((a, b) => a.school.district.localeCompare(b.school.district, 'ko') || a.school.officialName.localeCompare(b.school.officialName, 'ko'))
 

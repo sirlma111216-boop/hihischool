@@ -38,7 +38,7 @@ export default function Schools() {
     program: sp.get('program') ?? '',
     curriculumStatus: sp.get('curriculumStatus') ?? 'any',
     cohortYear: state.cohortYear,
-    pageSize: 200,
+    pageSize: view === "map" ? 500 : 200,
   }
   const key = JSON.stringify(params)
   const r = useAsync(() => apiGet<SchoolsResponse>(`/api/schools${qs(params)}`), key)
@@ -192,14 +192,14 @@ export default function Schools() {
               검색어나 필터를 바꾸거나, 해당 학교 자료가 아직 수집되지 않았는지 확인하세요. 자료가 없다는 것은 과목·시설이 없다는 뜻이 아닙니다.
             </Empty>
           ) : view === 'map' ? (
-            <div className="split">
+            <div className="split map-split">
               <div>
                 <Suspense fallback={<Skeleton lines={8} />}>
                   <SchoolMap schools={[...d.items, ...d.candidates].map((i) => i.school)} onSelect={onMapSelect} origin={origin} onOrigin={setOrigin} selectedId={selectedId} />
                 </Suspense>
                 {origin && <div className="toolbar"><span className="small">출발 위치: {origin.label} ({origin.lat}, {origin.lng}) — 서버·URL 에 저장되지 않습니다.</span><Button size="sm" variant="quiet" onClick={() => setOrigin(null)}>지우기</Button></div>}
               </div>
-              <div style={{ maxHeight: 600, overflow: 'auto' }}>
+              <div className="map-side">
                 {selectedId && <MapSelectionCard item={[...d.items, ...d.candidates].find((i) => i.school.id === selectedId) ?? null} origin={origin} cohortYear={state.cohortYear} onClose={() => setSelectedId(null)} onOpen={onSelect} />}
                 {[...d.items, ...d.candidates].map((it) => (
                   <SchoolRow key={it.school.id} item={it} origin={origin} onOpen={onSelect} compare={state.compare} onToggleCompare={(id) => dispatch(state.compare.includes(id) ? { type: 'compare.remove', id } : { type: 'compare.add', id })} compact />
@@ -221,7 +221,7 @@ export default function Schools() {
                       <td>{schoolTypeDisplay(it.school)}{it.school.schoolTypeStatus === 'conflict' && <> <StatusBadge status="conflict" /></>}</td>
                       <td>{ESTABLISHMENT_LABEL[it.school.establishment]}</td>
                       <td>{GENDER_LABEL[it.school.gender]}</td>
-                      <td><CurrStatus s={it.curriculumStatus} years={it.publishedCohortYears} /></td>
+                      <td><CurrStatus s={it.curriculumStatus} years={it.publishedCohortYears} draftYears={it.draftCohortYears} /></td>
                       {it.courseMatch && <td><CourseMatch m={it.courseMatch} /></td>}
                       <td><CompareToggle id={it.school.id} /></td>
                     </tr>
@@ -258,12 +258,13 @@ export default function Schools() {
   )
 }
 
-const CURR_LABEL: Record<string, string> = { published: '공개 자료 있음', draft_only: '검토 대기', none: '자료 없음', other_cohort_only: '다른 입학연도만' }
+const CURR_LABEL: Record<string, string> = { published: '공개 자료 있음', draft_only: '검토 대기', none: '자료 없음', other_cohort_only: '다른 입학연도만', other_cohort_draft: '다른 입학연도 초안만' }
 
-function CurrStatus({ s, years }: { s: SchoolListItem['curriculumStatus']; years: number[] }) {
+function CurrStatus({ s, years, draftYears = [] }: { s: SchoolListItem['curriculumStatus']; years: number[]; draftYears?: number[] }) {
   if (s === 'published') return <Tone tone="ok">검토 완료 공개</Tone>
   if (s === 'draft_only') return <Tone tone="warn">검토 대기</Tone>
   if (s === 'other_cohort_only') return <Tone tone="info">다른 입학연도만 ({years.join(', ')})</Tone>
+  if (s === 'other_cohort_draft') return <Tone tone="warn">다른 입학연도 초안 검토 대기 ({draftYears.join(', ')})</Tone>
   return <Tone tone="unknown">자료 없음</Tone>
 }
 
@@ -303,7 +304,7 @@ function SchoolRow({ item, origin, onOpen, compare, onToggleCompare, compact }: 
             {!s.geo && <> · 좌표 없음</>}
           </div>
           <div className="toolbar" style={{ margin: '8px 0 0' }}>
-            <CurrStatus s={item.curriculumStatus} years={item.publishedCohortYears} />
+            <CurrStatus s={item.curriculumStatus} years={item.publishedCohortYears} draftYears={item.draftCohortYears} />
             {item.courseMatch && <CourseMatch m={item.courseMatch} />}
             {item.programMatch && item.programMatch.map((p) => <Tone key={p.name} tone="ok">{p.name} ({p.phase === 'plan' ? '계획' : p.phase === 'result' ? '운영 결과' : p.phase === 'promotion' ? '홍보' : '단계 미확인'})</Tone>)}
           </div>
@@ -342,7 +343,7 @@ function MapSelectionCard({ item, origin, cohortYear, onClose, onOpen }: { item:
         <Button size="sm" variant="quiet" onClick={onClose} aria-label="선택 해제">×</Button>
       </div>
       <dl className="brief kv" style={{ border: 0, gridTemplateColumns: '110px 1fr', margin: '8px 0', fontSize: 14 }}>
-        <dt>{cohortYear} 교육과정</dt><dd><CurrStatus s={item.curriculumStatus} years={item.publishedCohortYears} /></dd>
+        <dt>{cohortYear} 교육과정</dt><dd><CurrStatus s={item.curriculumStatus} years={item.publishedCohortYears} draftYears={item.draftCohortYears} /></dd>
         <dt>선발 방식</dt><dd>{prof.loading ? '…' : rule ? AUTH[rule.selectionAuthority] : '해당 연도 규정 미확인'}</dd>
         <dt>학생 수</dt><dd>{prof.loading ? '…' : students ? `${Number(students.value).toLocaleString()}${students.unit ?? ''} (${students.basisYear})` : '공시 미수집'}</dd>
         {item.courseMatch && <><dt>관심 과목</dt><dd><CourseMatch m={item.courseMatch} /></dd></>}

@@ -231,9 +231,36 @@ table.data .sortbtn { background: none; border: 0; font: inherit; font-weight: i
 .cond-table td.c-bad { background: var(--bad-bg); }
 
 /* ---------- 지도 ---------- */
-.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 46%); gap: 14px; }
-.map-box { height: 560px; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: #eef0ea; position: relative; }
-.map-note { position: absolute; left: 10px; bottom: 10px; z-index: 500; background: rgba(255,255,255,0.94); border: 1px solid var(--line); padding: 6px 10px; font-size: 12px; border-radius: 4px; max-width: 70%; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 34%); gap: 14px; }
+/* 지도 보기: 지도가 주인공 — 화면 높이에 맞춰 크게, 옆 패널은 같은 높이로 스크롤 */
+.map-split { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); }
+.map-split .map-side { max-height: calc(100vh - 220px); min-height: 640px; overflow: auto; }
+.map-wrap { display: flex; flex-direction: column; gap: 8px; }
+.map-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.map-tools .input { flex: 1 1 240px; max-width: 420px; }
+.map-tools .select { width: auto; }
+.map-box { height: calc(100vh - 220px); min-height: 640px; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: #eef0ea; position: relative; }
+.map-note { position: absolute; left: 10px; bottom: 10px; z-index: 500; background: rgba(255,255,255,0.94); border: 1px solid var(--line); padding: 6px 10px; font-size: 12px; border-radius: 4px; max-width: 60%; }
+.school-marker { background: none; border: 0; }
+.school-marker svg { display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
+.school-marker.selected svg { filter: drop-shadow(0 0 0 3px rgba(180,138,77,0.55)) drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }
+.school-marker.synthetic svg { opacity: 0.6; }
+.map-legend { position: absolute; right: 10px; top: 10px; z-index: 500; background: rgba(255,255,255,0.96); border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; min-width: 190px; max-width: 240px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.map-legend-head { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 7px 10px; background: none; border: 0; border-bottom: 1px solid var(--line); font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; text-align: left; }
+.map-legend.collapsed .map-legend-head { border-bottom: 0; }
+.map-legend ul { list-style: none; margin: 0; padding: 4px 4px; max-height: 50vh; overflow: auto; }
+.map-legend li { display: flex; align-items: center; gap: 2px; }
+.map-legend li > button { display: flex; align-items: center; gap: 8px; flex: 1; padding: 4px 6px; background: none; border: 0; border-radius: 4px; font: inherit; color: var(--ink); cursor: pointer; text-align: left; }
+.map-legend li > button:hover { background: rgba(36,78,72,0.06); }
+.map-legend li.off > button { opacity: 0.45; text-decoration: line-through; }
+.map-legend .sw { display: inline-flex; width: 16px; height: 16px; flex: none; }
+.map-legend .lb { flex: 1; }
+.map-legend .ct { color: var(--muted); font-variant-numeric: tabular-nums; }
+.map-legend .only, .map-legend .all { flex: none; font-size: 11px; color: var(--muted); padding: 2px 6px; border: 1px solid transparent; }
+.map-legend .only:hover, .map-legend .all:hover { border-color: var(--line); color: var(--ink); }
+.map-legend li.bulk { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; gap: 6px; }
+.map-legend .all { flex: 1; justify-content: center; border: 1px solid var(--line) !important; border-radius: 4px; }
+.map-legend .all:disabled { opacity: 0.4; cursor: default; }
 
 /* ---------- 브리핑·인쇄 ---------- */
 .brief { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
@@ -286,8 +313,11 @@ table.data .sortbtn { background: none; border: 0; font: inherit; font-weight: i
   .hero h1 { font-size: 34px; }
   .underhero { grid-template-columns: 1fr; gap: 12px; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
-  .split { grid-template-columns: 1fr; }
-  .map-box { height: 420px; }
+  .split, .map-split { grid-template-columns: 1fr; }
+  .map-box { height: 70vh; min-height: 420px; }
+  .map-split .map-side { max-height: none; min-height: 0; }
+  .map-legend { max-width: 180px; font-size: 12px; }
+  .map-note { max-width: 55%; }
   .topbar { padding: 0 12px; gap: 8px; }
   .topbar-search { max-width: none; }
   .brand span.text { display: none; }

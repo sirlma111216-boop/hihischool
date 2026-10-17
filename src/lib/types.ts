@@ -3,8 +3,9 @@ import type { AdmissionEvent, AdmissionRule, CoverageSummary, CurriculumBundle, 
 
 export interface SchoolListItem {
   school: School
-  curriculumStatus: 'published' | 'draft_only' | 'none' | 'other_cohort_only'
+  curriculumStatus: 'published' | 'draft_only' | 'none' | 'other_cohort_only' | 'other_cohort_draft'
   publishedCohortYears: number[]
+  draftCohortYears: number[]
   courseMatch: { status: 'confirmed' | 'confirmed_absent' | 'unknown'; offerings: { name: string; grade: number; semester: number; credit: number | null; requirement: string; groupId: string | null }[] } | null
   programMatch: { name: string; kind: string; phase: string; status: string }[] | null
 }
