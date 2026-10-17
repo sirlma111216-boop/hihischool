@@ -1,3 +1,4 @@
+import { DEFAULT_COHORT_YEAR } from "@shared/constants"
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAsync, useDocumentTitle } from '../lib/hooks'
@@ -291,8 +292,8 @@ function AiPanel({ available }: { available: boolean }) {
           <p className="small muted">공개된 학교 문서 텍스트에서 과목·선택군·근거 위치 후보만 추출합니다. 반환 JSON 은 스키마·원문 존재로 검증되고, 근거 없는 항목은 버려집니다. 학생 정보는 보내지 않습니다. 결과는 자동 공개되지 않습니다.</p>
           <textarea className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder="문서 텍스트 (로컬 추출 결과)" aria-label="문서 텍스트" />
           <div className="toolbar">
-            <Button onClick={async () => setOut(JSON.stringify(await apiPost('/api/admin/ai/extract', { documentId: 'manual', text, cohortYear: 2027, dryRun: true }), null, 2))} disabled={!text}>예상 비용 보기 (dry run)</Button>
-            <Button variant="primary" onClick={async () => setOut(JSON.stringify(await apiPost('/api/admin/ai/extract', { documentId: 'manual', text, cohortYear: 2027, dryRun: false }), null, 2))} disabled={!text}>후보 추출 실행</Button>
+            <Button onClick={async () => setOut(JSON.stringify(await apiPost('/api/admin/ai/extract', { documentId: 'manual', text, cohortYear: DEFAULT_COHORT_YEAR, dryRun: true }), null, 2))} disabled={!text}>예상 비용 보기 (dry run)</Button>
+            <Button variant="primary" onClick={async () => setOut(JSON.stringify(await apiPost('/api/admin/ai/extract', { documentId: 'manual', text, cohortYear: DEFAULT_COHORT_YEAR, dryRun: false }), null, 2))} disabled={!text}>후보 추출 실행</Button>
           </div>
           {out && <pre className="small" style={{ whiteSpace: 'pre-wrap' }}>{out}</pre>}
         </>

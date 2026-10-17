@@ -54,7 +54,12 @@ function load(): WorkspaceState {
   }
   try {
     const raw = sessionStorage.getItem(SS_KEY)
-    if (raw) Object.assign(base, JSON.parse(raw) as Partial<WorkspaceState>, { evidenceId: null, session: null })
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<WorkspaceState>
+      // 사용자가 직접 고르지 않은 입학연도는 저장값을 버리고 현재 기본값(2026)을 쓴다 — 기본값이 바뀌어도 예전 세션 값이 남지 않게
+      if (!saved.cohortExplicit) delete saved.cohortYear
+      Object.assign(base, saved, { evidenceId: null, session: null })
+    }
   } catch {
     /* ignore */
   }
