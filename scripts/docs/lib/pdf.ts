@@ -54,6 +54,7 @@ export async function extractPdf(filePath: string, documentId: string): Promise<
     const page = await doc.getPage(i + 1)
     const vp = page.getViewport({ scale: 1 })
     const content = await page.getTextContent()
+    const rects = await collectRects(page)
     const items: Item[] = []
     for (const it of content.items) {
       if (!('str' in it) || !it.str.trim()) continue
@@ -76,7 +77,8 @@ export async function extractPdf(filePath: string, documentId: string): Promise<
       printedPageLabel: pageLabel && pageLabel.trim() ? pageLabel : null,
       width: vp.width,
       height: vp.height,
-      lines: lines.map((l) => ({ text: l.items.map((x) => x.text).join(' ').trim(), bbox: lineBox(l.items, vp.width, vp.height) })),
+      lines: lines.map((l) => ({ text: l.items.map((x) => x.text).join(' ').trim(), bbox: lineBox(l.items, vp.width, vp.height), items: l.items.map((it) => ({ text: it.text, x: it.x, y: it.y, w: it.w, h: it.h })) })),
+      rects,
     })
     // 표·각주 인식 (페이지 단위, 원본 items 사용)
     detectTablesAndNotes(base, lines, i, pages[pages.length - 1]!.printedPageLabel, vp.width, vp.height)
@@ -169,3 +171,23 @@ export function tablesToText(r: ExtractionResult): string {
 }
 
 export type { ExtractedNote }
+
+/** 페이지의 채움/선 사각형(셀 테두리·배경)을 모은다. constructPath 의 minMax 경계 상자를 쓴다. 표 격자 복원에 사용. */
+async function collectRects(page: pdfjs.PDFPageProxy): Promise<{ x0: number; y0: number; x1: number; y1: number }[]> {
+  const out: { x0: number; y0: number; x1: number; y1: number }[] = []
+  try {
+    const ops = await page.getOperatorList()
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      if (ops.fnArray[i] !== pdfjs.OPS.constructPath) continue
+      const args = ops.argsArray[i] as unknown[]
+      const minMax = args[2] as number[] | undefined
+      if (!minMax || minMax.length < 4) continue
+      const [x0, y0, x1, y1] = minMax as [number, number, number, number]
+      if (!Number.isFinite(x0) || !Number.isFinite(y1)) continue
+      out.push({ x0: Math.min(x0, x1), y0: Math.min(y0, y1), x1: Math.max(x0, x1), y1: Math.max(y0, y1) })
+    }
+  } catch {
+    /* 그래픽 연산을 읽지 못하면 격자 없이 진행 */
+  }
+  return out
+}

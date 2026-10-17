@@ -51,7 +51,9 @@ export interface ExtractedPage {
   printedPageLabel: string | null
   width: number
   height: number
-  lines: { text: string; bbox: BBox }[]
+  lines: { text: string; bbox: BBox; items?: { text: string; x: number; y: number; w: number; h: number }[] }[]
+  /** 셀 테두리·배경 사각형 (PDF 좌표계). 표 격자 복원용 */
+  rects?: { x0: number; y0: number; x1: number; y1: number }[]
 }
 
 export interface ExtractionResult {

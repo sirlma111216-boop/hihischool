@@ -25,6 +25,7 @@ export default function Schools() {
   const [draft, setDraft] = useState(q)
   const view = (sp.get('view') as 'list' | 'table' | 'map') || 'list'
   const [origin, setOrigin] = useState<MapOrigin | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   useEffect(() => setDraft(q), [q])
 
   const params = {
@@ -76,6 +77,8 @@ export default function Schools() {
     else setParam(c.key, '')
   }
   const onSelect = useCallback((id: string) => { remember(); nav(`/schools/${id}`) }, [nav]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 지도에서 학교를 누르면 화면을 바꾸지 않고 옆 패널에 요약을 보여준다
+  const onMapSelect = useCallback((id: string) => setSelectedId(id), [])
 
   const d = r.data
   return (
@@ -192,11 +195,12 @@ export default function Schools() {
             <div className="split">
               <div>
                 <Suspense fallback={<Skeleton lines={8} />}>
-                  <SchoolMap schools={[...d.items, ...d.candidates].map((i) => i.school)} onSelect={onSelect} origin={origin} onOrigin={setOrigin} />
+                  <SchoolMap schools={[...d.items, ...d.candidates].map((i) => i.school)} onSelect={onMapSelect} origin={origin} onOrigin={setOrigin} selectedId={selectedId} />
                 </Suspense>
                 {origin && <div className="toolbar"><span className="small">출발 위치: {origin.label} ({origin.lat}, {origin.lng}) — 서버·URL 에 저장되지 않습니다.</span><Button size="sm" variant="quiet" onClick={() => setOrigin(null)}>지우기</Button></div>}
               </div>
               <div style={{ maxHeight: 600, overflow: 'auto' }}>
+                {selectedId && <MapSelectionCard item={[...d.items, ...d.candidates].find((i) => i.school.id === selectedId) ?? null} origin={origin} cohortYear={state.cohortYear} onClose={() => setSelectedId(null)} onOpen={onSelect} />}
                 {[...d.items, ...d.candidates].map((it) => (
                   <SchoolRow key={it.school.id} item={it} origin={origin} onOpen={onSelect} compare={state.compare} onToggleCompare={(id) => dispatch(state.compare.includes(id) ? { type: 'compare.remove', id } : { type: 'compare.add', id })} compact />
                 ))}
@@ -310,5 +314,45 @@ function SchoolRow({ item, origin, onOpen, compare, onToggleCompare, compact }: 
         </div>
       </div>
     </article>
+  )
+}
+
+/** 지도에서 선택한 학교의 요약 패널 — 화면 전환 없이 지도 옆에 표시 */
+function MapSelectionCard({ item, origin, cohortYear, onClose, onOpen }: { item: SchoolListItem | null; origin: MapOrigin | null; cohortYear: number; onClose: () => void; onOpen: (id: string) => void }) {
+  const { state, dispatch } = useWorkspace()
+  const id = item?.school.id ?? ''
+  const prof = useAsync(() => apiGet<{ facts: { field: string; value: unknown; unit: string | null; basisYear: number | null; status: string }[]; draftVersionCount: number; curriculumVersions: { cohortYear: number }[]; admissionRules: { admissionYear: number; selectionAuthority: string; status: string }[] }>(`/api/schools/${encodeURIComponent(id)}`), id, Boolean(id))
+  if (!item) return null
+  const s = item.school
+  const on = state.compare.includes(s.id)
+  const dist = origin && s.geo ? formatStraightLine(haversineKm(origin, s.geo)) : null
+  const fact = (f: string) => prof.data?.facts.find((x) => x.field === f && x.status === 'confirmed')
+  const students = fact('students.total')
+  const rule = prof.data?.admissionRules.find((r) => r.admissionYear === cohortYear && r.status === 'published')
+  const AUTH: Record<string, string> = { superintendent_assignment: '교육감 배정', principal_selection: '학교장 선발', mixed: '전형별 상이', unknown: '미확인' }
+  return (
+    <section className="card" style={{ marginTop: 0, marginBottom: 12, borderColor: 'var(--brass)' }} aria-label="지도에서 선택한 학교">
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="eyebrow">지도에서 선택 · {s.district}</div>
+          <h3 style={{ margin: '4px 0' }}>{s.officialName}{s.isSynthetic && <> <SyntheticBadge /></>}</h3>
+          <div className="small muted">{SCHOOL_TYPE_LABEL[s.schoolType]} · {ESTABLISHMENT_LABEL[s.establishment]} · {GENDER_LABEL[s.gender]}{dist ? ` · ${dist}` : ''}</div>
+          {s.address && <div className="small muted">{s.address}</div>}
+        </div>
+        <Button size="sm" variant="quiet" onClick={onClose} aria-label="선택 해제">×</Button>
+      </div>
+      <dl className="brief kv" style={{ border: 0, gridTemplateColumns: '110px 1fr', margin: '8px 0', fontSize: 14 }}>
+        <dt>{cohortYear} 교육과정</dt><dd><CurrStatus s={item.curriculumStatus} years={item.publishedCohortYears} /></dd>
+        <dt>선발 방식</dt><dd>{prof.loading ? '…' : rule ? AUTH[rule.selectionAuthority] : '해당 연도 규정 미확인'}</dd>
+        <dt>학생 수</dt><dd>{prof.loading ? '…' : students ? `${Number(students.value).toLocaleString()}${students.unit ?? ''} (${students.basisYear})` : '공시 미수집'}</dd>
+        {item.courseMatch && <><dt>관심 과목</dt><dd><CourseMatch m={item.courseMatch} /></dd></>}
+        <dt>홈페이지</dt><dd>{s.homepage ? <a href={s.homepage} target="_blank" rel="noreferrer noopener">공식 홈페이지 ↗</a> : '미확인'}</dd>
+      </dl>
+      <div className="toolbar" style={{ margin: 0 }}>
+        <Button size="sm" variant="primary" onClick={() => onOpen(s.id)}>프로필 열기</Button>
+        <Link className="btn secondary sm" to={`/schools/${s.id}/curriculum`}>교육과정</Link>
+        <Button size="sm" variant={on ? 'primary' : 'secondary'} aria-pressed={on} disabled={!on && state.compare.length >= MAX_COMPARE_SCHOOLS} onClick={() => dispatch(on ? { type: 'compare.remove', id: s.id } : { type: 'compare.add', id: s.id })}>{on ? '비교 중' : '비교 담기'}</Button>
+      </div>
+    </section>
   )
 }

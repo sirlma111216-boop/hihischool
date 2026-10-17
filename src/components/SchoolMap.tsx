@@ -10,7 +10,7 @@ import { haversineKm, formatStraightLine } from '@shared/geo'
 
 export interface MapOrigin { lat: number; lng: number; label: string }
 
-export default function SchoolMap({ schools, onSelect, origin, onOrigin }: { schools: School[]; onSelect: (id: string) => void; origin: MapOrigin | null; onOrigin: (o: MapOrigin | null) => void }) {
+export default function SchoolMap({ schools, onSelect, origin, onOrigin, selectedId = null }: { schools: School[]; onSelect: (id: string) => void; origin: MapOrigin | null; onOrigin: (o: MapOrigin | null) => void; selectedId?: string | null }) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const layerRef = useRef<L.LayerGroup | null>(null)
@@ -20,7 +20,9 @@ export default function SchoolMap({ schools, onSelect, origin, onOrigin }: { sch
 
   useEffect(() => {
     if (!el.current || mapRef.current) return
-    const map = L.map(el.current, { center: [37.5665, 126.978], zoom: 11, zoomControl: true, attributionControl: true })
+    // 서울 범위 밖으로 나가거나 더 멀리 보지 않도록 경계·최소 확대 수준을 고정한다 (약간의 여유 포함)
+    const seoulBounds = L.latLngBounds([37.41, 126.74], [37.72, 127.20])
+    const map = L.map(el.current, { center: [37.5665, 126.978], zoom: 11, minZoom: 11, maxZoom: 18, maxBounds: seoulBounds, maxBoundsViscosity: 1.0, zoomControl: true, attributionControl: true })
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' })
     tiles.on('tileerror', () => setTileFailed(true))
     tiles.addTo(map)
@@ -52,14 +54,18 @@ export default function SchoolMap({ schools, onSelect, origin, onOrigin }: { sch
     for (const s of schools) {
       if (!s.geo) continue
       pts.push([s.geo.lat, s.geo.lng])
-      const m = L.circleMarker([s.geo.lat, s.geo.lng], { radius: 7, color: '#244E48', weight: 1.5, fillColor: s.isSynthetic ? '#B48A4D' : '#244E48', fillOpacity: 0.85 })
+      const sel = s.id === selectedId
+      const m = L.circleMarker([s.geo.lat, s.geo.lng], { radius: sel ? 11 : 7, color: sel ? '#B48A4D' : '#244E48', weight: sel ? 3 : 1.5, fillColor: s.isSynthetic ? '#B48A4D' : '#244E48', fillOpacity: 0.85 })
       const dist = origin ? formatStraightLine(haversineKm(origin, s.geo)) : null
       m.bindTooltip(`${s.officialName}${dist ? ` · ${dist}` : ''}`, { direction: 'top' })
-      m.on('click', () => onSelect(s.id))
+      m.on('click', (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stopPropagation(e) // 지도 클릭(출발 위치 찍기)과 구분
+        onSelect(s.id)
+      })
       m.addTo(layer)
     }
-    if (pts.length > 0 && mapRef.current && !origin) mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.2), { maxZoom: 13 })
-  }, [schools, onSelect, origin])
+    if (pts.length > 0 && mapRef.current && !origin && !selectedId) mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.2), { maxZoom: 13 }) // minZoom 11 이 하한
+  }, [schools, onSelect, origin, selectedId])
 
   useEffect(() => {
     const map = mapRef.current

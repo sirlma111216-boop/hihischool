@@ -1,13 +1,15 @@
 /**
- * 학년×학기 매트릭스형 편제표(공식 웹페이지 HTML 표 또는 표 JSON) → 검토용 데이터셋(초안).
+ * 학년×학기 매트릭스형 편제표(공식 웹페이지 HTML 표 또는 PDF 격자 복원 결과) → 검토용 데이터셋(초안).
  *
- * 입력: 브라우저에서 캡처한 표 JSON { heading, rows: [[{t, rs, cs, th}]] } (병합 셀은 rs/cs 로 표시).
+ * 입력: { heading, rows: [[{t, rs, cs, th}]] } (병합 셀은 rs/cs 로 표시). PDF 격자는 cellBoxes·rowPages 를 추가로 준다.
  * 처리:
- *  - 병합 셀을 격자로 펼치되, 값은 원래 셀 한 곳에만 둔다 (중복 계산 금지). rowSpan 으로 이어지는 교과(군)·선택 안내 셀만 아래 행에 전파.
+ *  - 병합 셀을 격자로 펼치되 값은 원래 셀 한 곳에만 둔다 (중복 계산 금지).
  *  - 머리글에서 'n학년' + 'n학기' (+ '이론/실습') 열을 찾아 열→(학년, 학기) 매핑. 이론·실습이 나뉘면 한 학기 학점 = 두 값의 합.
  *  - 소계·합계·창의적 체험활동·총 이수 행은 편성에서 제외하고 '원문 합계'로 보관해 계산 결과와 대조한다.
- *  - '택n' 셀(rowSpan)로 묶인 행은 선택군 후보(maxSelections=n, ruleStatus=unverified)로 만든다. 사람 검토 전 확정하지 않는다.
- *  - 과목유형(공통/일반선택/진로선택/융합선택/전공 실무 …)을 분류로, 지정/선택 여부는 원문에 명시가 없으면 'unknown' 으로 둔다.
+ *  - '택n' 셀(rowSpan)로 묶인 행은 선택군 후보(maxSelections=n, ruleStatus=unverified). 택 셀이 학기 열에 있으면
+ *    그 학기에 묶음이 편성된 것으로 보고 각 과목 학점은 '운영 학점' 열 값을 쓴다. 앞의 숫자(예: 16 (택4))는 학점 한도 후보.
+ *  - '구분' 열(학교 지정 / n학년 선택)이 있으면 지정·선택을 그 원문으로 정한다. 없으면 'unknown'.
+ *  - ※ 유의사항 행은 버전 메모와 선택군 미확인 사항으로 남긴다 (자동 해석하지 않음).
  */
 import type { Dataset } from '../../../shared/dataset'
 import { emptyDataset } from '../../../shared/dataset'
@@ -23,6 +25,10 @@ export interface CapturedCell {
 export interface CapturedTable {
   heading: string
   rows: CapturedCell[][]
+  /** PDF 격자: 행별 PDF 페이지 index */
+  rowPages?: number[]
+  /** PDF 격자: `${r}:${c}` (원본 셀 기준) → 상자 (PDF 좌표, 원점 좌하단) */
+  cellBoxes?: Map<string, { x: number; y: number; width: number; height: number }>
 }
 
 export interface MatrixOptions {
@@ -39,11 +45,16 @@ export interface MatrixOptions {
   sha256: string
   tableIndex: number
   isSynthetic?: boolean
+  /** PDF 입력일 때 */
+  source?: 'html_table' | 'pdf_table'
+  pageSizes?: Record<number, { width: number; height: number }>
+  pageLabels?: Record<number, string | null>
+  originalFilename?: string | null
 }
 
-interface GridCell {
+export interface GridCell {
   text: string
-  origin: boolean // 값이 실제로 있는 원래 셀인지
+  origin: boolean
   originRow: number
   originCol: number
   rowSpan: number
@@ -66,9 +77,8 @@ export function expandGrid(rows: CapturedCell[][]): GridCell[][] {
       for (let dr = 0; dr < rs; dr++) {
         for (let dc = 0; dc < cs; dc++) {
           const g: GridCell = { text: cell.t.trim(), origin: dr === 0 && dc === 0, originRow: r, originCol: c, rowSpan: rs }
-          if (dr === 0) {
-            grid[r]![c + dc] = g
-          } else occupied.set(`${r + dr}:${c + dc}`, g)
+          if (dr === 0) grid[r]![c + dc] = g
+          else occupied.set(`${r + dr}:${c + dc}`, g)
         }
       }
       c += cs
@@ -81,47 +91,48 @@ export function expandGrid(rows: CapturedCell[][]): GridCell[][] {
   return grid
 }
 
-const TOTAL_RE = /소계|합계|총\s*이수|창의적\s*체험활동|이수학점/
+const TOTAL_RE = /소계|합계|총\s*이수|창의적\s*체험활동|이수학점|과목\s*수/
+const NOTE_RE = /^[※*]|유의사항/
 const CATEGORY_MAP: [RegExp, CourseCategory][] = [
   [/^공통/, 'common'],
-  [/일반선택/, 'general_elective'],
-  [/진로선택/, 'career_elective'],
-  [/융합선택/, 'fusion_elective'],
+  [/일반/, 'general_elective'],
+  [/진로/, 'career_elective'],
+  [/융합/, 'fusion_elective'],
   [/전공|전문/, 'specialized'],
 ]
+const nz = (s: string) => s.replace(/\s+/g, '')
 
 export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): { dataset: Dataset; report: string[] } {
   const ds = emptyDataset()
   const report: string[] = []
   const grid = expandGrid(table.rows)
-  // 머리글 행: 'n학년' 이 있는 행부터 '이론/실습' 행까지
-  const headerRows = grid.findIndex((row) => row.some((c) => /^[123]학년$/.test(c.text)))
-  if (headerRows < 0) {
+  const gradeRowIdx = grid.findIndex((row) => row.some((c) => /^[123]학년$/.test(nz(c.text))))
+  if (gradeRowIdx < 0) {
     report.push('머리글에서 학년 열을 찾지 못해 표를 건너뜁니다.')
     return { dataset: ds, report }
   }
-  // 열 매핑
-  const colInfo: { grade: Grade; semester: Semester; part: 'theory' | 'practice' | 'single' }[] = []
-  const gradeRow = grid[headerRows]!
-  const semRow = grid[headerRows + 1]
-  const partRow = grid[headerRows + 2]
+  const gradeRow = grid[gradeRowIdx]!
+  const semRow = grid[gradeRowIdx + 1]
+  const partRow = grid[gradeRowIdx + 2]
   const colCount = Math.max(...grid.map((r) => r.length))
-  let dataStart = headerRows + 1
+  let dataStart = gradeRowIdx + 1
+  const colInfo: ({ grade: Grade; semester: Semester; part: 'theory' | 'practice' | 'single' } | undefined)[] = []
   for (let c = 0; c < colCount; c++) {
-    const g = gradeRow[c]?.text.match(/^([123])학년$/)
+    const g = nz(gradeRow[c]?.text ?? '').match(/^([123])학년$/)
     if (!g) continue
-    const s = semRow?.[c]?.text.match(/^([12])학기$/)
-    const p = partRow?.[c]?.text
-    if (s) dataStart = Math.max(dataStart, headerRows + 2)
-    if (p === '이론' || p === '실습') dataStart = Math.max(dataStart, headerRows + 3)
+    const s = nz(semRow?.[c]?.text ?? '').match(/^([12])학기$/)
+    const p = nz(partRow?.[c]?.text ?? '')
+    if (s) dataStart = Math.max(dataStart, gradeRowIdx + 2)
+    if (p === '이론' || p === '실습') dataStart = Math.max(dataStart, gradeRowIdx + 3)
     colInfo[c] = { grade: Number(g[1]) as Grade, semester: (s ? Number(s[1]) : 1) as Semester, part: p === '이론' ? 'theory' : p === '실습' ? 'practice' : 'single' }
   }
-  const headerText = grid.slice(0, dataStart).flat().map((c) => c.text)
-  const colGroup = headerText.findIndex((t) => /교과\(군\)|교과군/.test(t)) >= 0 ? gradeRow.findIndex((c) => /교과/.test(c.text)) : 0
-  const colType = gradeRow.findIndex((c) => /과목유형|구분/.test(c.text))
-  const colName = gradeRow.findIndex((c) => /^과목(명)?$/.test(c.text))
-  const colBase = gradeRow.findIndex((c) => /기준/.test(c.text))
-  const colRun = gradeRow.findIndex((c) => /운영/.test(c.text))
+  const findCol = (re: RegExp) => gradeRow.findIndex((c) => re.test(nz(c?.text ?? '')))
+  const colType = findCol(/^과목유형$/) >= 0 ? findCol(/^과목유형$/) : findCol(/^(구분|유형)$/)
+  const colReq = findCol(/^과목유형$/) >= 0 ? findCol(/^구분$/) : -1
+  const colName = findCol(/^과목(명)?$/)
+  const colBase = findCol(/^(기준|기본)학점$/)
+  const colRun = findCol(/운영학점|^운영$/)
+  const colGroup = findCol(/^교과\(군\)$|^교과군$|^교과$/)
   if (colName < 0) {
     report.push("머리글에서 '과목' 열을 찾지 못했습니다.")
     return { dataset: ds, report }
@@ -129,13 +140,14 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
 
   const docId = opts.documentId
   const versionId = `cv_${opts.schoolId}_${opts.cohortYear}${opts.trackId ? `_${opts.trackId}` : ''}_draft_${opts.sha256.slice(0, 8)}`
+  const method: Evidence['extractionMethod'] = opts.source ?? 'html_table'
   const doc: SourceDocument = {
     id: docId,
     schoolId: opts.schoolId,
     documentType: 'curriculum_table',
     title: opts.documentTitle,
     officialUrl: opts.officialUrl,
-    originalFilename: null,
+    originalFilename: opts.originalFilename ?? null,
     publisher: opts.publisher,
     publishedAt: null,
     retrievedAt: opts.retrievedAt,
@@ -150,9 +162,10 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
     reviewStatus: 'draft',
     supersedesId: null,
     isSynthetic: Boolean(opts.isSynthetic),
-    notes: `공식 홈페이지 HTML 표 "${table.heading}" 에서 추출한 초안. 게시일은 페이지에 없어 미확인`,
+    notes: `${method === 'pdf_table' ? '공식 PDF 격자' : '공식 홈페이지 HTML 표'} "${table.heading}" 에서 추출한 초안. 게시일은 문서에 없어 미확인`,
   }
   ds.documents.push(doc)
+  const versionNotes: string[] = [`자동 추출 초안 (${method}, 표 ${opts.tableIndex + 1}: ${table.heading}). 사람 검토 전`]
   ds.versions.push({
     id: versionId,
     schoolId: opts.schoolId,
@@ -166,27 +179,38 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
     reviewedAt: null,
     publishedAt: null,
     supersedesId: null,
-    notes: `자동 추출 초안 (html_table, 표 ${opts.tableIndex + 1}: ${table.heading}). 사람 검토 전`,
+    notes: '',
     isSynthetic: Boolean(opts.isSynthetic),
   })
 
-  const groups = new Map<string, SelectionGroup & { anchorRow: number }>()
+  const groups = new Map<string, SelectionGroup & { markerCol: number; semKey: string | null }>()
   const stated: { label: string; perSemester: Partial<Record<string, number>>; total: number | null }[] = []
+  const sourceNotes: string[] = []
   let evN = 0
+  const pageOf = (r: number) => table.rowPages?.[r] ?? null
+  const boxOf = (r: number, c: number) => {
+    const g = grid[r]?.[c]
+    if (!g || !table.cellBoxes) return null
+    const b = table.cellBoxes.get(`${g.originRow}:${g.originCol}`)
+    const pi = pageOf(g.originRow)
+    const size = pi !== null ? opts.pageSizes?.[pi] : undefined
+    return b && size ? { x: b.x, y: b.y, width: b.width, height: b.height, pageWidth: size.width, pageHeight: size.height } : null
+  }
   const mkEvidence = (row: number, col: number | null, excerpt: string, anchor: string): Evidence => {
     evN += 1
+    const pi = pageOf(row)
     const ev: Evidence = {
       id: `ev_${docId}_t${opts.tableIndex}_r${row}${col !== null ? `_c${col}` : ''}_${evN}`,
       documentId: docId,
-      pdfPageIndex: null,
-      printedPageLabel: null,
-      tableId: `표 ${opts.tableIndex + 1} (${table.heading})`,
+      pdfPageIndex: pi,
+      printedPageLabel: pi !== null ? (opts.pageLabels?.[pi] ?? null) : null,
+      tableId: `표 ${opts.tableIndex + 1}${table.heading ? ` (${table.heading})` : ''}`,
       rowIndex: row,
       columnIndex: col,
-      boundingBox: null,
+      boundingBox: col !== null ? boxOf(row, col) : boxOf(row, colName),
       paragraphAnchor: anchor,
       excerpt,
-      extractionMethod: 'html_table',
+      extractionMethod: method,
       reviewedBy: null,
       reviewedAt: null,
       isSynthetic: Boolean(opts.isSynthetic),
@@ -197,10 +221,13 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
 
   for (let r = dataStart; r < grid.length; r++) {
     const row = grid[r]!
-    const rowText = row.filter((c) => c.origin).map((c) => c.text).join(' | ')
+    const rowText = row.filter((c) => c.origin).map((c) => c.text).filter(Boolean).join(' | ')
     const firstText = row.find((c) => c.text)?.text ?? ''
+    if (NOTE_RE.test(firstText) && row.filter((c) => c.origin && c.text).length <= 2) {
+      sourceNotes.push(firstText)
+      continue
+    }
     if (TOTAL_RE.test(firstText) || TOTAL_RE.test(row[colName]?.text ?? '')) {
-      // 원문 합계 보관
       const per: Partial<Record<string, number>> = {}
       colInfo.forEach((ci, c) => {
         if (!ci) return
@@ -212,10 +239,12 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
       continue
     }
     const name = (row[colName]?.text ?? '').trim()
-    if (!name) continue
-    const subjectGroup = colGroup >= 0 ? [row[colGroup]?.text, row[colGroup + 1]?.text].filter((t, i, a) => t && a.indexOf(t) === i && t !== name).join(' · ') : ''
+    if (!name || /^과목(명)?$/.test(nz(name))) continue
+    const groupCols = colGroup >= 0 ? (colType > colGroup ? Array.from({ length: colType - colGroup }, (_, i) => colGroup + i) : [colGroup]) : []
+    const subjectGroup = [...new Set(groupCols.map((c) => row[c]?.text).filter((t): t is string => Boolean(t) && t !== name))].join(' · ')
     const typeText = colType >= 0 ? (row[colType]?.text ?? '') : ''
-    const category = CATEGORY_MAP.find(([re]) => re.test(typeText))?.[1] ?? 'unknown'
+    const category = CATEGORY_MAP.find(([re]) => re.test(nz(typeText)))?.[1] ?? 'unknown'
+    const reqText = colReq >= 0 ? nz(row[colReq]?.text ?? '') : ''
     const runCredit = colRun >= 0 ? Number(row[colRun]?.text) : NaN
     const baseCredit = colBase >= 0 ? Number(row[colBase]?.text) : NaN
 
@@ -223,17 +252,23 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
     let groupKey: string | null = null
     let groupLabel: string | null = null
     let groupMax: number | null = null
+    let groupCredits: number | null = null
+    let markerCol = -1
     for (let c = 0; c < row.length; c++) {
       const cell = row[c]
-      if (!cell) continue
+      if (!cell || c === colName) continue
       const m = cell.text.match(/택\s*(\d+)/)
-      if (m && c !== colName) {
+      if (m) {
         groupKey = `r${cell.originRow}_c${cell.originCol}`
         groupLabel = cell.text
         groupMax = Number(m[1])
+        const lead = cell.text.match(/^(\d+)\s*\(?택/)
+        groupCredits = lead ? Number(lead[1]) : null
+        markerCol = c
         break
       }
     }
+    const markerSem = markerCol >= 0 ? colInfo[markerCol] : undefined
 
     // 학기별 학점
     const perSem = new Map<string, { grade: Grade; semester: Semester; credit: number; cols: number[] }>()
@@ -249,34 +284,14 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
       cur.cols.push(c)
       perSem.set(k, cur)
     })
-    if (perSem.size === 0) {
-      // 택n 그룹의 뒤 행은 학점 셀이 첫 행에만 있을 수 있다 → 그룹 첫 행의 학점을 공유
-      if (groupKey && groups.has(groupKey)) {
-        const g = groups.get(groupKey)!
-        const firstOff = ds.offerings.find((o) => o.selectionGroupId === g.id)
-        if (firstOff) {
-          const ev = mkEvidence(r, null, rowText, `표 ${opts.tableIndex + 1} 행 ${r} (학점은 선택군 첫 행과 공유)`)
-          const offId = `off_${versionId}_r${r}_s${firstOff.grade}${firstOff.semester}`
-          ds.offerings.push({ ...firstOff, id: offId, courseOriginalName: name, subjectGroup, courseCategory: category, note: `${groupLabel} (학점은 그룹 공통 ${firstOff.creditValue})`, evidenceIds: [ev.id] })
-          g.memberOfferingIds.push(offId)
-          // 같은 과목이 두 학기에 걸친 경우도 복제
-          for (const other of ds.offerings.filter((o) => o.selectionGroupId === g.id && o.courseOriginalName === firstOff.courseOriginalName && o.id !== firstOff.id)) {
-            const oid = `off_${versionId}_r${r}_s${other.grade}${other.semester}`
-            ds.offerings.push({ ...other, id: oid, courseOriginalName: name, subjectGroup, courseCategory: category, note: `${groupLabel} (학점은 그룹 공통 ${other.creditValue})`, evidenceIds: [ev.id] })
-            g.memberOfferingIds.push(oid)
-          }
-          continue
-        }
-      }
-      const ev = mkEvidence(r, colName, rowText, `표 ${opts.tableIndex + 1} 행 ${r}`)
-      ds.offerings.push(mkOffering(versionId, opts, `off_${versionId}_r${r}_s11`, name, subjectGroup, category, 1, 1, null, null, groupLabel, [ev.id]))
-      report.push(`행 ${r} ${name}: 학기별 학점 칸이 비어 있어 학점 null·1학년 1학기 자리에 둠 (검토 필요)`)
-      continue
+    // 택 셀이 학기 열에 있고 행에 학기 값이 없으면: 그 학기에 운영 학점으로 편성
+    if (perSem.size === 0 && markerSem && Number.isFinite(runCredit)) {
+      perSem.set(`${markerSem.grade}-${markerSem.semester}`, { grade: markerSem.grade, semester: markerSem.semester, credit: runCredit, cols: [markerCol] })
     }
     let groupId: string | null = null
     if (groupKey) {
       if (!groups.has(groupKey)) {
-        const ev = mkEvidence(r, null, `${groupLabel}`, `표 ${opts.tableIndex + 1} 행 ${r} 선택 안내 셀`)
+        const ev = mkEvidence(r, markerCol, `${groupLabel}`, `표 ${opts.tableIndex + 1} 행 ${r} 선택 안내 셀`)
         groups.set(groupKey, {
           id: `sg_${versionId}_${groupKey}`,
           versionId,
@@ -286,26 +301,34 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
           minSelections: null,
           maxSelections: groupMax,
           minCredits: null,
-          maxCredits: null,
+          maxCredits: groupCredits,
           periodScope: 'unknown',
           exceptions: [],
           verifiedRules: [],
-          unknownRules: [`자동 추출 후보: '${groupLabel}' — 선택 개수 ${groupMax}로 읽음. 적용 기간·최소 선택 수·학과 간 운영 방식은 사람 검토 필요`],
+          unknownRules: [`자동 추출 후보: '${groupLabel}' — 선택 ${groupMax}과목${groupCredits !== null ? `, 합계 ${groupCredits}학점` : ''}으로 읽음. 최소 선택 수·적용 기간·예외는 사람 검토 필요`],
           ruleStatus: 'unverified',
           evidenceIds: [ev.id],
-          anchorRow: r,
+          markerCol,
+          semKey: markerSem ? `${markerSem.grade}-${markerSem.semester}` : null,
         })
       }
       groupId = groups.get(groupKey)!.id
     }
+    if (perSem.size === 0) {
+      const ev = mkEvidence(r, colName, rowText, `표 ${opts.tableIndex + 1} 행 ${r}`)
+      const fallbackGrade = (reqText.match(/([123])학년/)?.[1] ? Number(reqText.match(/([123])학년/)![1]) : 1) as Grade
+      ds.offerings.push(mkOffering(versionId, opts, `off_${versionId}_r${r}_s${fallbackGrade}1`, name, subjectGroup, category, fallbackGrade, 1, null, Number.isFinite(baseCredit) ? baseCredit : null, groupLabel, [ev.id], groupId, reqOf(reqText, groupId)))
+      if (groupId) groups.get(groupKey!)!.memberOfferingIds.push(`off_${versionId}_r${r}_s${fallbackGrade}1`)
+      report.push(`행 ${r} ${name}: 학기별 학점 칸이 비어 있어 학점 null·${fallbackGrade}학년 1학기 자리에 둠 (검토 필요)`)
+      continue
+    }
     const sems = [...perSem.values()]
-    const cross = sems.length >= 2 && Number.isFinite(runCredit) && sems.every((s) => s.credit === runCredit) ? null : null // 교차 편성은 원문 명시가 없으므로 만들지 않음
     const sumSem = sems.reduce((a, s) => a + s.credit, 0)
-    if (Number.isFinite(runCredit) && sumSem !== runCredit) report.push(`행 ${r} ${name}: 학기 합계 ${sumSem} ≠ 학교 운영 학점 ${runCredit} (검토 경고)`)
+    if (Number.isFinite(runCredit) && sumSem !== runCredit) report.push(`행 ${r} ${name}: 학기 합계 ${sumSem} ≠ 운영 학점 ${runCredit} (검토 경고)`)
     for (const s of sems) {
       const ev = mkEvidence(r, s.cols[0] ?? null, rowText, `표 ${opts.tableIndex + 1} 행 ${r}, ${s.grade}학년 ${s.semester}학기 열`)
       const offId = `off_${versionId}_r${r}_s${s.grade}${s.semester}`
-      ds.offerings.push(mkOffering(versionId, opts, offId, name, subjectGroup, category, s.grade, s.semester, s.credit, Number.isFinite(baseCredit) ? baseCredit : null, groupLabel, [ev.id], groupId, cross))
+      ds.offerings.push(mkOffering(versionId, opts, offId, name, subjectGroup, category, s.grade, s.semester, s.credit, Number.isFinite(baseCredit) ? baseCredit : null, groupLabel, [ev.id], groupId, reqOf(reqText, groupId)))
       if (groupId) groups.get(groupKey!)!.memberOfferingIds.push(offId)
     }
   }
@@ -314,33 +337,43 @@ export function packageMatrixTable(table: CapturedTable, opts: MatrixOptions): {
     const sems = [...new Set(members.map((m) => `${m.grade}-${m.semester}`))]
     const grades = [...new Set(members.map((m) => m.grade))]
     g.scope = sems.length === 1 ? `${members[0]?.grade}학년 ${members[0]?.semester}학기` : grades.length === 1 ? `${grades[0]}학년 전체 (${sems.join(', ')})` : sems.join(', ')
-    // 같은 학년의 두 학기에 걸친 '택n' 은 학년 단위 선택 후보로 둔다 (사람 검토로 확정)
     g.periodScope = sems.length === 1 ? 'semester' : grades.length === 1 ? 'grade_year' : 'unknown'
-    const { anchorRow: _a, ...rest } = g
+    if (sourceNotes.length) g.unknownRules.push(`원문 유의사항 확인 필요: ${sourceNotes.join(' / ').slice(0, 300)}`)
+    const { markerCol: _m, semKey: _s, ...rest } = g
     ds.selectionGroups.push(rest)
   }
-  // 원문 합계 대조
+  if (sourceNotes.length) versionNotes.push(`원문 유의사항: ${sourceNotes.join(' / ')}`)
+  ds.versions[0]!.notes = versionNotes.join('\n')
+  // 원문 합계 대조 (선택군은 '최대 선택 수 × 과목 학점' 또는 maxCredits 로 가정)
   for (const st of stated) {
-    if (!/이수학점 소계|보통교과 소계|전문교과 소계/.test(st.label)) continue
+    if (!/이수학점 소계|보통교과 소계|전문교과 소계|교과 이수 학점 소계/.test(st.label)) continue
     const filter = /보통교과/.test(st.label) ? (o: CurriculumOffering) => o.courseCategory !== 'specialized' : /전문교과/.test(st.label) ? (o: CurriculumOffering) => o.courseCategory === 'specialized' : () => true
     for (const [k, v] of Object.entries(st.perSemester)) {
-      const [g, s] = k.split('-').map(Number)
-      const mine = ds.offerings.filter((o) => o.grade === g && o.semester === s && filter(o))
-      // 선택군은 후보 전체가 아니라 '1개 선택' 가정이 필요하므로, 그룹당 첫 과목만 더한 값과 전체 합을 모두 보고한다.
+      const [gr, se] = k.split('-').map(Number)
+      const mine = ds.offerings.filter((o) => o.grade === gr && o.semester === se && filter(o))
       const seenGroup = new Set<string>()
-      const sumPick = mine.reduce((a, o) => {
+      const sum = mine.reduce((a, o) => {
         if (o.selectionGroupId) {
           if (seenGroup.has(o.selectionGroupId)) return a
           seenGroup.add(o.selectionGroupId)
+          const g = ds.selectionGroups.find((x) => x.id === o.selectionGroupId)
+          if (g?.maxCredits !== null && g?.maxCredits !== undefined) return a + g.maxCredits
+          return a + (o.creditValue ?? 0) * (g?.maxSelections ?? 1)
         }
         return a + (o.creditValue ?? 0)
       }, 0)
-      const warn = compareWithStatedTotal(v ?? null, sumPick, mine.filter((o) => o.creditValue === null).length)
-      if (warn) report.push(`${st.label} ${g}학년 ${s}학기: ${warn} (선택군은 1과목 선택으로 가정해 계산)`)
+      const warn = compareWithStatedTotal(v ?? null, sum, mine.filter((o) => o.creditValue === null).length)
+      if (warn) report.push(`${st.label} ${gr}학년 ${se}학기: ${warn} (선택군은 '택n' 한도로 가정해 계산)`)
     }
   }
-  report.push(`편성 ${ds.offerings.length}건, 선택군 후보 ${ds.selectionGroups.length}개, 근거 ${ds.evidence.length}건 — 모두 초안. 지정/선택 구분은 원문에 명시가 없어 'unknown'`)
+  report.push(`편성 ${ds.offerings.length}건, 선택군 후보 ${ds.selectionGroups.length}개, 근거 ${ds.evidence.length}건 — 모두 초안.${colReq >= 0 ? " 지정/선택은 원문 '구분' 열 기준" : " 지정/선택 구분은 원문에 명시가 없어 'unknown'"}${sourceNotes.length ? ` · 유의사항 ${sourceNotes.length}건` : ''}`)
   return { dataset: ds, report }
+}
+
+function reqOf(reqText: string, groupId: string | null): CurriculumOffering['requirementType'] {
+  if (/지정/.test(reqText)) return 'school_designated'
+  if (/선택/.test(reqText) || groupId) return 'student_choice'
+  return 'unknown'
 }
 
 function mkOffering(
@@ -356,8 +389,8 @@ function mkOffering(
   baseCredit: number | null,
   groupLabel: string | null,
   evidenceIds: string[],
-  groupId: string | null = null,
-  cross: string | null = null,
+  groupId: string | null,
+  requirementType: CurriculumOffering['requirementType'],
 ): CurriculumOffering {
   return {
     id,
@@ -370,14 +403,14 @@ function mkOffering(
     revision: opts.revision,
     subjectGroup,
     courseCategory: category,
-    requirementType: groupId ? 'student_choice' : 'unknown',
+    requirementType,
     grade,
     semester,
     creditValue: credit,
     creditUnit: opts.revision === '2015' ? 'unit' : opts.revision === '2022' ? 'credit' : 'unknown',
     selectionGroupId: groupId,
     offeringStatus: 'planned',
-    crossSemesterGroup: cross,
+    crossSemesterGroup: null,
     note: [baseCredit !== null ? `기준 학점 ${baseCredit}` : null, groupLabel].filter(Boolean).join(' · ') || null,
     evidenceIds,
   }
