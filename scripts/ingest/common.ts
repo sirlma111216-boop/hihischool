@@ -64,6 +64,45 @@ export async function postAdmin(baseUrl: string, token: string | undefined, path
   return j.data
 }
 
+export interface ExistingSchool {
+  id: string
+  officialName: string
+  address: string | null
+  geo: { lat: number; lng: number; source: string; retrievedAt: string | null } | null
+  schoolType: string
+  schoolTypeStatus: string
+  establishment: string
+  gender: string
+  dayNight: string
+}
+
+/** 대상 API 의 현재 학교 목록(가상 제외). crosswalk 판단(정식명 + 도로명 주소)에 쓴다. */
+export async function loadExistingSchools(baseUrl: string | undefined): Promise<ExistingSchool[]> {
+  if (!baseUrl) return []
+  try {
+    const out: ExistingSchool[] = []
+    for (let page = 1; page <= 20; page++) {
+      const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/schools?pageSize=200&page=${page}`)
+      const j = (await res.json()) as { ok: boolean; data?: { items: { school: ExistingSchool & { isSynthetic: boolean } }[]; total: number } }
+      const items = j.data?.items ?? []
+      out.push(...items.filter((i) => !i.school.isSynthetic).map((i) => i.school))
+      if (items.length < 200) break
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+export const normName = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').replace(/\(.*?\)/g, '')
+
+/** 정식명 + 도로명 주소 앞부분이 모두 같을 때만 같은 학교로 본다 (이름만 같으면 병합하지 않음). */
+export function matchExisting(existing: ExistingSchool[], name: string, roadAddress: string): { same: ExistingSchool | null; nameOnly: ExistingSchool | null } {
+  const same = existing.find((e) => normName(e.officialName) === normName(name) && e.address && roadAddress && normName(e.address).startsWith(normName(roadAddress).slice(0, 12))) ?? null
+  const nameOnly = same ? null : (existing.find((e) => normName(e.officialName) === normName(name)) ?? null)
+  return { same, nameOnly }
+}
+
 export function emptyIngestDataset(): Dataset {
   return { schools: [], tracks: [], documents: [], evidence: [], versions: [], offerings: [], selectionGroups: [], facts: [], programs: [], admissionRules: [], admissionEvents: [] }
 }

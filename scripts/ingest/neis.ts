@@ -9,7 +9,7 @@
  * 공식 문서: https://open.neis.go.kr/portal/data/service/selectServicePage.do?infId=OPEN17020190531110010104913&infSeq=2
  */
 import path from 'node:path'
-import { loadDevVars, postAdmin, withRetry, writeJson, emptyIngestDataset } from './common'
+import { loadDevVars, postAdmin, withRetry, writeJson, emptyIngestDataset, loadExistingSchools, matchExisting } from './common'
 import { SEOUL_DISTRICTS, DISTRICT_NAMES } from '../../shared/constants'
 import { districtFromAddress, normalizeDayNight, normalizeEstablishment, normalizeGender, normalizeSchoolType, slugId } from '../../shared/normalize'
 import type { School, SourceDocument } from '../../shared/types'
@@ -61,6 +61,9 @@ async function main() {
   const key = vars.NEIS_API_KEY
   const schoolName = arg('name') // --name <정식명> : 특정 학교 한 곳만 (동명이교는 주소로 사람이 확인)
   const retrievedAt = new Date().toISOString()
+  const existing = await loadExistingSchools(arg('post'))
+  const mergedLog: string[] = []
+  const pendingDup: string[] = []
   const all: NeisRow[] = []
   let total: number | null = null
   let note: string | null = null
@@ -110,7 +113,11 @@ async function main() {
       continue
     }
     perDistrict.set(district, (perDistrict.get(district) ?? 0) + 1)
-    const id = slugId('sch', 'neis', r.SD_SCHUL_CODE) // 재시도 시 같은 id → upsert (중복 학교 생성 금지)
+    // 기존 학교(예: 학교알리미 수집분)와 정식명 + 도로명 주소가 일치하면 같은 학교로 보고 코드만 추가한다.
+    const { same, nameOnly } = matchExisting(existing, r.SCHUL_NM, r.ORG_RDNMA)
+    const id = same ? same.id : slugId('sch', 'neis', r.SD_SCHUL_CODE) // 재시도 시 같은 id → upsert (중복 학교 생성 금지)
+    if (same) mergedLog.push(`${r.SCHUL_NM} → ${same.id}`)
+    if (nameOnly) pendingDup.push(`${r.SCHUL_NM}: 기존 ${nameOnly.id} 와 이름만 같음 (주소 다름) → 별도 학교, 코드 pending`)
     const typeRaw = r.HS_SC_NM || r.SPCLY_PURPS_HS_ORD_NM || r.HS_GNRL_BUSNS_SC_NM
     const school: School = {
       id,
@@ -119,16 +126,17 @@ async function main() {
       aliases: [],
       district,
       districtCode: SEOUL_DISTRICTS.find((d) => d.name === district)?.legalCode ?? null,
-      schoolType: normalizeSchoolType(typeRaw),
-      schoolTypeStatus: typeRaw ? 'confirmed' : 'no_data',
+      // 병합 시 더 세분화된 기존 값(학교알리미 자공/자사 구분, 좌표)을 유지한다
+      schoolType: same && same.schoolTypeStatus === 'confirmed' ? (same.schoolType as School['schoolType']) : normalizeSchoolType(typeRaw),
+      schoolTypeStatus: same && same.schoolTypeStatus === 'confirmed' ? 'confirmed' : typeRaw ? 'confirmed' : 'no_data',
       establishment: normalizeEstablishment(r.FOND_SC_NM),
       gender: normalizeGender(r.COEDU_SC_NM),
       dayNight: normalizeDayNight(r.DGHT_SC_NM),
       operatingStatus: 'unknown', // 나이스 기본정보에 운영 상태 필드가 없으면 추측하지 않음
       address: address || null,
-      geo: null, // 나이스 기본정보는 좌표를 제공하지 않는다. 좌표는 별도 공식 출처로 확보한다.
+      geo: same?.geo ?? null, // 나이스 기본정보는 좌표를 제공하지 않는다. 병합 시 기존 좌표 유지.
       homepage: r.HMPG_ADRES ? (r.HMPG_ADRES.startsWith('http') ? r.HMPG_ADRES : `http://${r.HMPG_ADRES}`) : null,
-      codes: [{ provider: 'neis', code: r.SD_SCHUL_CODE, status: 'confirmed', evidenceIds: [`ev_${docId}`] }],
+      codes: [{ provider: 'neis', code: r.SD_SCHUL_CODE, status: nameOnly ? 'pending' : 'confirmed', evidenceIds: [`ev_${docId}`] }],
       tracks: [],
       isSynthetic: false,
       retrievedAt,
@@ -139,8 +147,9 @@ async function main() {
     ds.facts.push({ id: `fact_${id}_founded`, schoolId: id, field: 'school.founded', value: r.FOND_YMD || null, unit: null, basisYear: null, definition: '설립일 (나이스 기본정보)', validFrom: null, validTo: null, status: r.FOND_YMD ? 'confirmed' : 'no_data', evidenceIds: [`ev_${docId}`], derivation: null, reviewerNote: null })
   }
   const out = arg('out', path.join(root, 'data/ingest/neis.json'))!
-  writeJson(out, { retrievedAt, sampleOnly, total, rows: all.length, dataset: ds })
-  console.log(`데이터셋 저장: ${path.relative(root, out)} (학교 ${ds.schools.length})`)
+  writeJson(out, { retrievedAt, sampleOnly, total, rows: all.length, merged: mergedLog, pendingDup, dataset: ds })
+  console.log(`데이터셋 저장: ${path.relative(root, out)} (학교 ${ds.schools.length}, 기존과 병합 ${mergedLog.length}, 이름만 일치 ${pendingDup.length})`)
+  if (pendingDup.length) console.log('검토 대기:', pendingDup.join(' · '))
 
   const districts = SEOUL_DISTRICTS.map((d) => ({ district: d.name, status: sampleOnly ? (perDistrict.has(d.name) ? ('partial' as const) : ('not_attempted' as const)) : perDistrict.has(d.name) ? ('succeeded' as const) : ('failed' as const), schoolCount: perDistrict.get(d.name) ?? 0, error: sampleOnly ? '인증키 없는 표본 수집 (전체 아님)' : null }))
   const post = arg('post')

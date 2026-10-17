@@ -32,7 +32,7 @@
 공식 API 목록 페이지(학사/학생 > 학교기본정보, 2026-10-17 사용자 화면으로 확인)에서 요청 규격을 확인했다: 요청 URL `http://www.schoolinfo.go.kr/openApi.do`, REST/JSON, 요청인자 `apiKey`(필수), `apiType`(필수, 학교기본정보=0), `sidoCode`(선택), `sggCode`(선택, 첨부 '시도시군구코드.xlsx' 기준), `schulKndCode`(필수, 04=고등학교). 이용허락: 공공누리 출처표시. 어댑터 기본값(`apiKey`/`apiType=0`/`sggCode`/`schulKndCode=04`)과 일치한다. **미확인**: 서울의 `sidoCode`·구별 `sggCode` 값(첨부 xlsx 로 확인 필요 — 법정 코드와 다를 수 있음)과 응답 필드명(첫 실행 응답으로 `fieldMap` 조정). 키가 없어 아직 실행하지 않았다.
 
 ## 나이스
-키 없이도 `SCHUL_NM` 정식명 조회는 해당 행을 돌려준다(`npm run ingest:neis -- --name <정식명>`). 전체 목록은 키가 있어야 받는다. NEIS 코드(SD_SCHUL_CODE)와 학교알리미 코드는 `school_codes` 에 provider 별로 분리 저장한다.
+사용자 발급 인증키로 서울 고등학교 전체 **319행** 수집(2026-10-17). 정식명 + 도로명 주소 일치 기준으로 학교알리미 레코드 **318개교에 병합**(두 코드 모두 `school_codes` 에 보유). 1건 미해결: **상일여자고등학교** — 학교알리미 응답에 도로명 주소가 없고(null) 홈페이지도 `sangil.hs.kr` 과 `sangil.sen.hs.kr` 로 달라 자동 병합 조건을 충족하지 못해 별도 레코드(`sch_neis-7010181`, 코드 pending)로 남겼다. 사람이 확인 후 병합한다. 키 없이도 `--name <정식명>` 조회는 된다. NEIS 코드와 학교알리미 코드는 provider 별로 분리 저장한다.
 
 ## 가상 fixture (기능 검증 전용)
 `fixtures/synthetic.ts` 가상 학교 A/B/C/D 와 `tests/fixtures/*` 문서. 배포 환경에서는 차단된다.
