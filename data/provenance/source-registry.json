@@ -1,0 +1,135 @@
+{
+  "description": "설계에 사용한 공식 출처. 최신 세부 규정의 법률 검토나 학교별 데이터 수집 완료를 뜻하지 않음.",
+  "entries": [
+    {
+      "id": "schoolinfo_api",
+      "title": "학교알리미 공개용 API 목록",
+      "url": "https://www.schoolinfo.go.kr/ng/go/pnnggo_a01_l0.do",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "기본 정보·공시 항목별 제공 범위 확인",
+      "limitation": "완전한 교육과정 선택군 API라고 가정하지 않음",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "schoolinfo_2026_key",
+      "title": "학교알리미 2026 신규 인증키 지역 조회 공지",
+      "url": "https://www.schoolinfo.go.kr/ng/no/pnngno_a01_s0.do?notice_no=00000000000000000000000000000256",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "2026 신규 키의 sgg 조건",
+      "limitation": "실제 키 종류와 최신 공지 재확인",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "schoolinfo_curriculum",
+      "title": "학교알리미 교육과정 공시 항목",
+      "url": "https://www.schoolinfo.go.kr/ei/ss/pneiss_a05_s1.do",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "교육과정 관련 공시 항목",
+      "limitation": "학교별 상세 문서 확보·분석은 미완료",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "neis_school",
+      "title": "나이스 학교기본정보",
+      "url": "https://open.neis.go.kr/portal/data/service/selectServicePage.do?infId=OPEN17020190531110010104913&infSeq=2",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "기본 정보와 코드 매핑",
+      "limitation": "수정일을 교육과정 개정일로 간주하지 않음",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "seoul_admission_initial",
+      "title": "서울시교육청 2027학년도 고입 기본계획 게시",
+      "url": "https://www.sen.go.kr/user/bbs/BD_selectBbs.do?q_bbsDocNo=20260331091528935&q_bbsSn=1068",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "입학전형 공식 문서",
+      "limitation": "변경·정정 공고를 추가 확인해야 함",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "seoul_admission_revision",
+      "title": "고입정보포털 서울 2027학년도 변경 기본계획 게시",
+      "url": "https://hischool.go.kr/entrance/sido/view.do?nttId=21263",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "변경 공고 존재 확인",
+      "limitation": "전형 규칙으로 정규화·검토 완료한 데이터 아님",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "cf_assets",
+      "title": "Cloudflare Workers Static Assets",
+      "url": "https://developers.cloudflare.com/workers/static-assets/",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "정적 화면과 Worker API 구성",
+      "limitation": "계정과 실제 배포 설정 확인",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "cf_vite",
+      "title": "Cloudflare Vite plugin tutorial",
+      "url": "https://developers.cloudflare.com/workers/vite-plugin/tutorial/",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "Vite 기반 앱 구조",
+      "limitation": "구현 시 최신 지원 버전 고정",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "cf_github",
+      "title": "Cloudflare Workers Builds Git integration",
+      "url": "https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "GitHub 연결 배포",
+      "limitation": "실제 계정 연결·인증 필요",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "cf_limits",
+      "title": "Cloudflare Workers limits",
+      "url": "https://developers.cloudflare.com/workers/platform/limits/",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "무료 실행 제한과 문서 처리 분리",
+      "limitation": "무거운 OCR을 실시간 Worker 요청으로 처리하지 않음",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "cf_d1",
+      "title": "Cloudflare D1 pricing",
+      "url": "https://developers.cloudflare.com/d1/platform/pricing/",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "DB 무료 범위·요금",
+      "limitation": "현재 계정·사용량에 따라 다시 확인",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "cf_r2",
+      "title": "Cloudflare R2 pricing",
+      "url": "https://developers.cloudflare.com/r2/pricing/",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "선택적 원문 저장 비용",
+      "limitation": "R2는 핵심 기능의 필수 의존성이 아님",
+      "schoolRecordsImported": 0
+    },
+    {
+      "id": "font_license",
+      "title": "Pretendard font license",
+      "url": "https://github.com/orioncactus/pretendard/blob/main/LICENSE",
+      "checkedDate": "2026-10-17",
+      "status": "reference_page_checked",
+      "scope": "실제 앱 폰트 라이선스",
+      "limitation": "폰트 파일과 라이선스는 구현 시 함께 확보",
+      "schoolRecordsImported": 0
+    }
+  ]
+}

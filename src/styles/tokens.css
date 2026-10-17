@@ -1,0 +1,52 @@
+@font-face {
+  font-family: 'Pretendard Variable';
+  src: url('/fonts/PretendardVariable.woff2') format('woff2-variations');
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --paper: #f6f4ee;
+  --surface: #ffffff;
+  --ink: #172d32;
+  --green: #244e48;
+  --green-ink: #1b3b36;
+  --muted: #5d6e70;
+  --brass: #b48a4d;
+  --brass-ink: #7a5a2a; /* 작은 글자용 황동 대비 보정 */
+  --line: #d8deda;
+  --line-strong: #b9c3bd;
+  --soft: #eaf0eb;
+  --soft-2: #f0f2ec;
+  --warn-bg: #f7efe0;
+  --warn-ink: #6d4e18;
+  --bad-bg: #f6e6e3;
+  --bad-ink: #8a3a2c;
+  --unknown-bg: #eceeee;
+  --unknown-ink: #4e5c5e;
+  --focus: #a87325;
+
+  --font: 'Pretendard Variable', Pretendard, 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --fs-body: 16px;
+  --fs-table: 15px;
+  --fs-source: 13px;
+  --fs-counsel: 18px;
+
+  --topbar-h: 68px;
+  --sidenav-w: 236px;
+  --drawer-w: 420px;
+  --compare-bar-h: 60px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow: 0 12px 32px rgba(23, 45, 50, 0.06);
+  --motion: 180ms;
+}
+
+@media (max-width: 1280px) {
+  :root { --drawer-w: 380px; --sidenav-w: 220px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion: 0ms; }
+}

@@ -1,0 +1,60 @@
+{
+  "_note": "사람이 fixture 설계 명세를 보고 작성한 기대값. 추출 코드로 생성하지 않았다. PDF 배열 페이지(0-based)와 인쇄 쪽수 라벨을 구분한다.",
+  "pageLabels": ["i", "ii", "1", "2", "3", "4", "5"],
+  "tables": {
+    "T1": {
+      "pdfPageIndex": 3,
+      "printedPageLabel": "2",
+      "rows": [
+        ["공통국어1", "4", "", "지정", ""],
+        ["공통국어2", "", "4", "지정", ""],
+        ["공통수학1", "4", "", "지정", ""],
+        ["공통수학2", "", "4", "지정", ""],
+        ["공통영어1", "4", "", "지정", ""],
+        ["공통영어2", "", "4", "지정", ""],
+        ["정보", "", "3", "지정", ""],
+        ["과목 N", "", "", "지정", "학점 공란"]
+      ]
+    },
+    "T2": {
+      "pdfPageIndexes": [4, 5],
+      "rowsIncludingContinuation": [
+        ["문학", "4", "", "지정", ""],
+        ["대수", "4", "", "지정", ""],
+        ["과목 A", "3", "", "선택", "[G]"],
+        ["과목 B", "3", "", "선택", "[G]"],
+        ["과목 C", "3", "", "선택", "[G]"],
+        ["과목 D", "3", "", "선택", "[H]"],
+        ["과목 E", "", "3", "선택", "[H]"],
+        ["과목 F", "3", "3", "선택", "[X] 1·2학기 교차 편성"],
+        ["과목 G", "3", "", "선택", "[X]"]
+      ],
+      "repeatedHeaderMustNotBeCourseRow": true
+    },
+    "T3": {
+      "pdfPageIndex": 6,
+      "printedPageLabel": "5",
+      "rows": [
+        ["과목 P", "4", "", "선택", "[K]"],
+        ["과목 Q", "4", "", "선택", "[K]"],
+        ["과목 R", "4", "", "선택", "[K]"],
+        ["인공지능 기초", "", "4", "선택", "[K2]"],
+        ["데이터 과학", "", "4", "선택", "[K2]"]
+      ]
+    }
+  },
+  "notes": [
+    { "pdfPageIndex": 5, "printedPageLabel": "4", "text": "선택군 G: 과목 A / B / C 중 1과목 선택" },
+    { "pdfPageIndex": 5, "printedPageLabel": "4", "text": "선택군 H: 2학년 전체에서 과목 D 또는 과목 E 중 1과목" },
+    { "pdfPageIndex": 5, "printedPageLabel": "4", "text": "선택군 X: 과목 F 또는 과목 G 중 1과목 (최대 3학점). 과목 F 는 1·2학기 교차 편성(한 학기만 이수)" },
+    { "pdfPageIndex": 6, "printedPageLabel": "5", "text": "선택군 K: 3과목 중 1과목" },
+    { "pdfPageIndex": 6, "printedPageLabel": "5", "text": "선택군 K2: 인공지능 기초 / 데이터 과학 중 1~2과목" }
+  ],
+  "packaged": {
+    "offeringCount": 23,
+    "nullCreditCourses": ["과목 N"],
+    "crossSemesterCourse": "과목 F",
+    "groupCandidates": { "G": { "min": 1, "max": 1 }, "H": { "min": 1, "max": 1, "period": "grade_year" }, "X": { "min": 1, "max": 1 }, "K": { "min": 1, "max": 1 }, "K2": { "min": 1, "max": 2 } },
+    "allGroupsUnverified": true
+  }
+}

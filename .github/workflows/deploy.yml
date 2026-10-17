@@ -1,0 +1,55 @@
+# GitHub → Cloudflare Workers 자동 배포 (대안 경로)
+# 기본 경로는 Cloudflare Workers Builds 의 Git 연동(대시보드에서 저장소 연결)이다.
+# 이 워크플로는 저장소 secrets 에 CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID 가 있을 때만 배포를 수행한다.
+# (Workers Builds 를 연결했다면 중복 배포를 피하기 위해 이 워크플로의 deploy job 을 비활성화하거나 secrets 를 넣지 않는다.)
+name: ci-and-deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run docs:fixtures
+      - run: npm run test:unit
+      - run: npm run build
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check secrets
+        id: secrets
+        run: |
+          if [ -n "${{ secrets.CLOUDFLARE_API_TOKEN }}" ] && [ -n "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "CLOUDFLARE_API_TOKEN/ACCOUNT_ID 없음 — 배포 건너뜀 (Workers Builds 연동 사용 중이면 정상)"; fi
+      - name: Apply D1 migrations
+        if: steps.secrets.outputs.present == 'true'
+        run: npx wrangler d1 migrations apply highschool_atlas --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Build and deploy
+        if: steps.secrets.outputs.present == 'true'
+        run: npm run build && npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

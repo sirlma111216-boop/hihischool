@@ -1,0 +1,21 @@
+# 로컬 개발 전용. 이 파일을 .dev.vars 로 복사해 값을 채운다. .dev.vars 는 Git 에 넣지 않는다.
+# 배포 환경에서는 같은 이름을 `wrangler secret put <NAME>` 으로 등록한다.
+
+# 로컬에서만 관리자 인증을 우회한다. 배포 환경(APP_ENV=production/preview)에서는 값과 무관하게 무시된다.
+APP_ENV=development
+DEV_ADMIN_BYPASS=1
+
+# 관리자 인증 1: Cloudflare Access (권장). 팀 도메인과 애플리케이션 AUD 를 넣으면 JWT 서명·issuer·audience·만료를 검증한다.
+# CF_ACCESS_TEAM_DOMAIN=https://<team>.cloudflareaccess.com
+# CF_ACCESS_AUD=<application audience tag>
+
+# 관리자 인증 2: 로컬 CLI(게시 스크립트)용 토큰. 길고 무작위한 값. 요청 헤더 Authorization: Bearer <token>
+# ADMIN_API_TOKEN=
+
+# 공공 데이터 키 (수집 스크립트와 관리자 갱신 작업에서만 사용. 프런트엔드로 전달되지 않는다)
+# SCHOOLINFO_API_KEY=
+# NEIS_API_KEY=
+
+# 선택: 생성형 AI 문서 구조화 보조. 비어 있으면 관련 UI 는 비활성이다.
+# AI_PROVIDER=anthropic
+# AI_API_KEY=

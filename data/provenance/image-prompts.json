@@ -1,0 +1,18 @@
+{
+  "generator": "Built-in image generation tool, same approved method as previous package",
+  "googleImagenUsed": false,
+  "assets": [
+    {
+      "id": "atlas-hero",
+      "file": "atlas-hero.png",
+      "purpose": "랜딩과 검색 시작 화면의 장식 이미지",
+      "prompt": "Use case: stylized-concept, premium editorial architectural still life. Create a wide 16:9 high-resolution decorative hero artwork for a Korean high-school curriculum research and counseling application. Warm ivory paper background #F6F4EE, ink-green #172D32, deep forest #244E48, subtle brushed brass #B48A4D. On the RIGHT 55% of the canvas, an exceptionally refined physical architectural model: several small abstract school-like modern buildings, open library terraces, fine folded archival paper sheets layered like a small atlas, with a single thin forest-green ribbon threading among them as a metaphor of educational choices. Unbranded, entirely fictional architectural forms, not any identifiable real school or a geographic map. Museum-grade craft, matte plaster, crisp ivory cardstock, pale oak accents, soft daylight, tactile shadow detail. LEFT 45% is clean warm ivory negative space for live HTML Korean headings and a search box. Calm intelligent warmth, high-end editorial publication, subtle depth, no sci-fi, no dark background, no bright gradients, no students, no graduation cap, no diploma, no numbers, no labels, no text, no logos, no watermark, no interface controls. One cohesive finished image, not a moodboard."
+    },
+    {
+      "id": "briefing-cover",
+      "file": "briefing-cover.png",
+      "purpose": "상담 보고서와 근거 보관함의 작은 표지",
+      "prompt": "Use case: stylized-concept, premium editorial still life. Create a wide 3:2 high-resolution decorative header for a Korean school counselor's evidence-based briefing report. A warm ivory archival desktop #F6F4EE. On the RIGHT two thirds: beautifully aligned blank paper folios, one deep forest-green #244E48 linen notebook, a thin brushed brass #B48A4D page marker, and a clear small glass paperweight casting a very soft shadow. One page has only subtle empty grid lines, with no writing or numerical data. Layering expresses careful comparison and evidence, not a graduation celebration. LEFT third is clean empty ivory space for live HTML report heading. Restrained Japanese/Korean editorial stationery photography, fine paper grain, natural daylight, sophisticated minimalism, readable quiet background. No people, no hands, no maps, no student records, no text, no digits, no logos, no watermark, no diploma, no graduation cap, no chart pretending to be real data. One finished raster asset."
+    }
+  ]
+}
